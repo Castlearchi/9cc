@@ -1,10 +1,36 @@
 #include "9cc.h"
 
 static void gen(Node *node);
+static void gen_lval(Node *node);
+
+static void gen_lval(Node *node) {
+  if (node->kind != ND_LVAR)
+    error("代入の左辺値が変数ではありません");
+
+  printf("  mov rax, rbp\n");
+  printf("  sub rax, %d\n", node->offset);
+  printf("  push rax\n");
+}
 
 static void gen(Node *node) {
-  if (node->kind == ND_NUM) {
+  switch (node->kind) {
+  case ND_NUM:
     printf("  push %d\n", node->val);
+    return;
+  case ND_LVAR:
+    gen_lval(node);
+    printf("  pop rax\n");
+    printf("  mov rax, [rax]\n");
+    printf("  push rax\n");
+    return;
+  case ND_ASSIGN:
+    gen_lval(node->lhs);
+    gen(node->rhs);
+
+    printf("  pop rdi\n");
+    printf("  pop rax\n");
+    printf("  mov [rax], rdi\n");
+    printf("  push rdi\n");
     return;
   }
 
@@ -53,17 +79,30 @@ static void gen(Node *node) {
   printf("  push rax\n");
 }
 
-void codegen(Node *node){
+void codegen(Node *code){
   // Print out the first half of assembly.
   printf(".intel_syntax noprefix\n");
   printf(".global main\n");
   printf("main:\n");
 
-  // Traverse the AST to emit assembly.
-  gen(node);
+  // Allocate memory for 26 variables.
+  printf("  push rbp\n");
+  printf("  mov rbp, rsp\n");
+  printf("  sub rsp, 208\n");
 
-  // A result must be at the top of the stack, so pop it
-  // to RAX to make it a program exit code.
+  // Traverse the AST to emit assembly.
+  for (int i = 0; code[i].kind; i++) {
+    gen(&code[i]);
+
+    // Since there should be one value left in the stack 
+    // as a result of evaluating the expression,
+    // make sure to pop it to avoid overflowing the stack.
+    printf("  pop rax\n");
+  }
+
+  // The result of the last expression is stored in RAX,
+  // so it becomes the return value.
+  printf("  mov rsp, rbp\n");
   printf("  pop rax\n");
   printf("  ret\n");
 }

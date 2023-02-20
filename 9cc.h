@@ -11,6 +11,7 @@
 
 typedef enum {
   TK_RESERVED, // Keywords or punctuators
+  TK_IDENT,    // Identifier
   TK_NUM,      // Integer literals
   TK_EOF,      // End-of-file markers
 } TokenKind;
@@ -28,6 +29,7 @@ struct Token {
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
+int consume_ident();
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
 bool at_eof(Token **tok);
@@ -40,15 +42,17 @@ Token *tokenize(char *p);
 //
 
 typedef enum {
-  ND_ADD, // +
-  ND_SUB, // -
-  ND_MUL, // *
-  ND_DIV, // /
-  ND_EQ,  // ==
-  ND_NE,  // !=
-  ND_LT,  // <
-  ND_LE,  // <=
-  ND_NUM, // Integer
+  ND_ADD,     // +
+  ND_SUB,     // -
+  ND_MUL,     // *
+  ND_DIV,     // /
+  ND_EQ,      // ==
+  ND_NE,      // !=
+  ND_LT,      // <
+  ND_LE,      // <=
+  ND_NUM,     // Integer
+  ND_ASSIGN,  // =
+  ND_LVAR     // Local Variable
 } NodeKind;
 
 // AST node type
@@ -58,6 +62,7 @@ struct Node {
   Node *lhs;     // Left-hand side
   Node *rhs;     // Right-hand side
   int val;       // Used if kind == ND_NUM
+  int offset;    // Used if kind == ND_NUM
 };
 
 Node *parse(Token **tok);

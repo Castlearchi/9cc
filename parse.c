@@ -3,7 +3,25 @@
 static Node *new_node(NodeKind kind);
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_num(int val);
+static Node *new_ident(int offset);
+
+/*
+  program    = stmt*
+  stmt       = expr ";"
+  expr       = assign
+  assign     = equality ("=" assign)?
+  equality   = relational ("==" relational | "!=" relational)*
+  relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+  add        = mul ("+" mul | "-" mul)*
+  mul        = unary ("*" unary | "/" unary)*
+  unary      = ("+" | "-")? primary
+  primary    = num | ident | "(" expr ")"
+*/
+
+static Node *program(Token **tok);
+static Node *stmt(Token **tok);
 static Node *expr(Token **tok);
+static Node *assign(Token **tok);
 static Node *equality(Token **tok);
 static Node *relational(Token **tok);
 static Node *add(Token **tok);
@@ -31,9 +49,41 @@ static Node *new_num(int val) {
   return node;
 }
 
-// expr = equality
+static Node *new_ident(int offset) {
+  Node *node = new_node(ND_LVAR);
+  node->offset = offset;
+  return node;
+}
+
+// program    = stmt*
+static Node *program(Token **tok) {
+  int i = 0;
+  Node *code[100];
+
+  while (!at_eof(tok)) 
+    code[i++] = stmt(tok);
+  code[i] = NULL;
+  return *code;
+}
+
+// stmt = expr ";"
+static Node *stmt(Token **tok) {
+  Node *node = expr(tok);
+  expect(tok, ";");
+  return node;
+}
+
+// expr = assign
 static Node *expr(Token **tok) {
-  return equality(tok);
+  return assign(tok);
+}
+
+//assign = equality ("=" assign)?
+static Node *assign(Token **tok) {
+  Node *node = equality(tok);
+  if(consume(tok, "="))
+    node = new_node(ND_ASSIGN);
+  return node;
 }
 
 // equality = relational ("==" relational | "!=" relational)*
@@ -106,19 +156,25 @@ static Node *unary(Token **tok) {
   return primary(tok);
 }
 
-// primary = "(" expr ")" | num
+// primary = num | ident | "(" expr ")"
 static Node *primary(Token **tok) {
+
   if (consume(tok, "(")) {
     Node *node = expr(tok);
     expect(tok, ")");
     return node;
   }
-  Node *a = new_num(expect_number(tok));
-  return a;
+  
+  int offset;
+  if(offset = consume_ident(tok)) {
+    Node *node = new_ident(offset);
+    return node;
+  }
+
+  return new_num(expect_number(tok));;
 }
 
 
 Node *parse(Token **tok) {
-  Node *node = expr(tok);
-  return node;
+  return program(tok);
 }

@@ -45,6 +45,14 @@ bool consume(Token **tok, char *op) {
   return true;
 }
 
+int consume_ident(Token **tok) {
+  if((*tok)->kind != TK_IDENT)
+    return 0;
+  int offset = ((*tok)->str[0] - 'a' + 1) * 8;
+  (*tok) = (*tok)->next;
+  return offset;
+}
+
 // Ensure that the current token is `op`.
 void expect(Token **tok, char *op) {
   if ((*tok)->kind != TK_RESERVED ||
@@ -113,6 +121,12 @@ Token *tokenize(char *p) {
       char *q = p;
       cur->val = strtol(p, &p, 10);
       cur->len = p - q;
+      continue;
+    }
+
+    if ('a' <= *p && *p <= 'z') {
+      cur = new_token(TK_IDENT, cur, p++, 1);
+      cur->len = 1;
       continue;
     }
 
