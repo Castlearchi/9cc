@@ -103,6 +103,6 @@ void codegen(Node *code){
   // The result of the last expression is stored in RAX,
   // so it becomes the return value.
   printf("  mov rsp, rbp\n");
-  printf("  pop rax\n");
+  printf("  pop rbp\n");
   printf("  ret\n");
 }

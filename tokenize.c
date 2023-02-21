@@ -110,7 +110,7 @@ Token *tokenize(char *p) {
       p+=2;
       continue; 
     }
-    if (strchr("+-*/()<>", *p)) {
+    if (strchr("+-*/()<>;=", *p)) {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
@@ -132,7 +132,6 @@ Token *tokenize(char *p) {
 
     error_at(p, "invalid token");
   }
-
   new_token(TK_EOF, cur, p, 0);
   return head.next;
 }
