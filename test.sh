@@ -16,6 +16,10 @@ assert() {
   fi
 }
 
-assert 0 0;
+assert 100 "100;"
+assert 22 "5 * 6 - 8;"
+assert 3 "a = 3;a;"
+assert 5 "a = 4;b = 5;b;"
+assert 14 "a = 3;b = 5 * 6 - 8;a + b / 2;"
 
 echo OK

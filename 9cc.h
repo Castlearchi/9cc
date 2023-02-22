@@ -65,10 +65,10 @@ struct Node {
   int offset;    // Used if kind == ND_NUM
 };
 
-Node *parse(Token **tok);
+int parse(Node **code, Token **tok);
 
 
 //
 // codegen.c
 //
-void codegen(Node *node);
+void codegen(Node **node, int code_num);

@@ -18,7 +18,7 @@ static Node *new_ident(int offset);
   primary    = num | ident | "(" expr ")"
 */
 
-static Node *program(Token **tok);
+static int program(Node **code, Token **tok);
 static Node *stmt(Token **tok);
 static Node *expr(Token **tok);
 static Node *assign(Token **tok);
@@ -55,15 +55,15 @@ static Node *new_ident(int offset) {
   return node;
 }
 
-// program    = stmt*
-static Node *program(Token **tok) {
+// program = stmt*
+static int program(Node **code, Token **tok) {
   int i = 0;
-  Node *code[100];
 
-  while (!at_eof(tok)) 
-    code[i++] = stmt(tok);
-  code[i] = NULL;
-  return *code;
+  while (!at_eof(tok)) {
+    code[i] = malloc(sizeof(Node));
+    *code[i++] = *stmt(tok);
+  }
+  return i;
 }
 
 // stmt = expr ";"
@@ -82,7 +82,8 @@ static Node *expr(Token **tok) {
 static Node *assign(Token **tok) {
   Node *node = equality(tok);
   if(consume(tok, "="))
-    node = new_node(ND_ASSIGN);
+    node = new_binary(ND_ASSIGN, node, assign(tok));
+    
   return node;
 }
 
@@ -175,6 +176,7 @@ static Node *primary(Token **tok) {
 }
 
 
-Node *parse(Token **tok) {
-  return program(tok);
+int parse(Node **code, Token **tok) {
+  int code_num = program(code, tok);
+  return code_num;
 }

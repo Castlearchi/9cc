@@ -33,7 +33,7 @@ static void gen(Node *node) {
     printf("  push rdi\n");
     return;
   }
-
+  
   gen(node->lhs);
   gen(node->rhs);
 
@@ -79,7 +79,7 @@ static void gen(Node *node) {
   printf("  push rax\n");
 }
 
-void codegen(Node *code){
+void codegen(Node **code, int code_num){
   // Print out the first half of assembly.
   printf(".intel_syntax noprefix\n");
   printf(".global main\n");
@@ -91,8 +91,8 @@ void codegen(Node *code){
   printf("  sub rsp, 208\n");
 
   // Traverse the AST to emit assembly.
-  for (int i = 0; code[i].kind; i++) {
-    gen(&code[i]);
+  for (int i = 0; i < code_num; i++) {
+    gen(code[i]);
 
     // Since there should be one value left in the stack 
     // as a result of evaluating the expression,

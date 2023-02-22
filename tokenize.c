@@ -59,6 +59,7 @@ void expect(Token **tok, char *op) {
       (*tok)->len != strlen(op) ||
       memcmp((*tok)->str, op, (*tok)->len))
     error_at((*tok)->str, "expected '%s'", op);
+  
   (*tok) = (*tok)->next;
 }
 
