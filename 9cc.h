@@ -26,6 +26,17 @@ struct Token {
   int len;        // Token length
 };
 
+typedef struct LVar LVar;
+
+// Local Variable
+struct LVar {
+  LVar *next; // Next var or NULL
+  char *name; // Var name
+  int len;    // Name length
+  int offset; // Offset from RBP
+};
+
+
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
