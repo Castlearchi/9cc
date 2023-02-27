@@ -68,7 +68,7 @@ static int program(Node **code, Token **tok) {
   int i = 0;
   LVar **locals;
 
-  while (!at_eof(tok)) {
+  while (at_eof(tok)) {
     code[i] = malloc(sizeof(Node));
     *code[i++] = *stmt(tok, locals);
   }

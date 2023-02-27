@@ -128,16 +128,15 @@ Token *tokenize(char *p) {
     
     if ('a' <= *p && *p <= 'z') {
       char *var_str = calloc(128, sizeof(char));
-      printf("aaa");
       int var_length = 0;
       while ('a' <= *p && *p <= 'z') {
         var_str[var_length] = *p;
         var_length++;
+        p++;
       }
+      
       var_str[var_length]='\0';
-      printf("%s\n", var_str);
       cur = new_token(TK_IDENT, cur, var_str, var_length);
-      p+=var_length;
       continue;
     }
 
