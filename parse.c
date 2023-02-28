@@ -3,7 +3,6 @@
 static Node *new_node(NodeKind kind);
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_num(int val);
-static Node *new_ident(int offset);
 static LVar *find_lvar(Token **tok, LVar **locals);
 /*
   program    = stmt*
@@ -49,15 +48,9 @@ static Node *new_num(int val) {
   return node;
 }
 
-static Node *new_ident(int offset) {
-  Node *node = new_node(ND_LVAR);
-  node->offset = offset;
-  return node;
-}
-
 // Search var name rbut not find return NULL.
 LVar *find_lvar(Token **tok, LVar **locals) {
-  for (LVar *var = *locals; var; var = var->next)
+  for (LVar *var = *locals; var; var = var->next) 
     if (var->len == (*tok)->len && !memcmp((*tok)->str, var->name, var->len))
       return var;
   return NULL;
@@ -66,9 +59,12 @@ LVar *find_lvar(Token **tok, LVar **locals) {
 // program = stmt*
 static int program(Node **code, Token **tok) {
   int i = 0;
-  LVar **locals;
+  LVar **locals =(LVar**)calloc(1, sizeof(LVar*));
+  *locals = (LVar*)calloc(1, sizeof(LVar));
+  (*locals)->offset = 0;
+  (*locals)->next = NULL;
 
-  while (at_eof(tok)) {
+  while (!at_eof(tok)) {
     code[i] = malloc(sizeof(Node));
     *code[i++] = *stmt(tok, locals);
   }
@@ -175,10 +171,8 @@ static Node *primary(Token **tok, LVar **locals) {
     return node;
   }
   
-  int offset;
-  if(offset = consume_ident(tok)) {
-    Node *node = new_ident(offset);
-
+  if(expect_ident(tok)) {
+    Node *node = new_node(ND_LVAR);
     LVar *lvar = find_lvar(tok, locals);
     if (lvar) {
       node->offset = lvar->offset;
@@ -191,6 +185,7 @@ static Node *primary(Token **tok, LVar **locals) {
       node->offset = lvar->offset;
       *locals = lvar;
     }
+    (*tok) = (*tok)->next;
     return node;
   }
 

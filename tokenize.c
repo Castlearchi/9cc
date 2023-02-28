@@ -45,12 +45,11 @@ bool consume(Token **tok, char *op) {
   return true;
 }
 
-int consume_ident(Token **tok) {
+bool expect_ident(Token **tok) {
   if((*tok)->kind != TK_IDENT)
-    return 0;
-  int offset = ((*tok)->str[0] - 'a' + 1) * 8;
-  (*tok) = (*tok)->next;
-  return offset;
+    return false;
+  else
+    true;
 }
 
 // Ensure that the current token is `op`.
@@ -134,7 +133,6 @@ Token *tokenize(char *p) {
         var_length++;
         p++;
       }
-      
       var_str[var_length]='\0';
       cur = new_token(TK_IDENT, cur, var_str, var_length);
       continue;

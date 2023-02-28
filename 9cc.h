@@ -40,7 +40,7 @@ struct LVar {
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
-int consume_ident();
+bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
 bool at_eof(Token **tok);

@@ -33,7 +33,7 @@ static void gen(Node *node) {
     printf("  push rdi\n");
     return;
   }
-  
+
   gen(node->lhs);
   gen(node->rhs);
 
@@ -75,7 +75,6 @@ static void gen(Node *node) {
     printf("  movzb rax, al\n");
     break;
   }
-
   printf("  push rax\n");
 }
 
@@ -93,13 +92,12 @@ void codegen(Node **code, int code_num){
   // Traverse the AST to emit assembly.
   for (int i = 0; i < code_num; i++) {
     gen(code[i]);
-
     // Since there should be one value left in the stack 
     // as a result of evaluating the expression,
     // make sure to pop it to avoid overflowing the stack.
     printf("  pop rax\n");
   }
-
+  
   // The result of the last expression is stored in RAX,
   // so it becomes the return value.
   printf("  mov rsp, rbp\n");
