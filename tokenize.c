@@ -6,8 +6,11 @@ static char *user_input;
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
+bool consume_return(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
+bool is_al(char character);
+int is_alnum(char character);
 bool at_eof(Token **tok);
 static Token *new_token(TokenKind kind, Token *cur, char *str, int len);
 static bool startswith(char *p, char *q);
@@ -45,6 +48,13 @@ bool consume(Token **tok, char *op) {
   return true;
 }
 
+bool consume_return(Token **tok) {
+  if((*tok)->kind != TK_RETURN) 
+    return false;
+  (*tok) = (*tok)->next;
+  return true;
+}
+
 bool expect_ident(Token **tok) {
   if((*tok)->kind != TK_IDENT)
     return false;
@@ -69,6 +79,19 @@ int expect_number(Token **tok) {
   int val = (*tok)->val;
   (*tok) = (*tok)->next;
   return val;
+}
+
+bool is_al(char character) {
+  return ('a' <= character && character <= 'z') ||
+         ('A' <= character && character <= 'Z') ||
+         (character == '_');
+}
+
+int is_alnum(char character) {
+  return ('a' <= character && character <= 'z') ||
+         ('A' <= character && character <= 'Z') ||
+         ('0' <= character && character <= '9') ||
+         (character == '_');
 }
 
 bool at_eof(Token **tok) {
@@ -124,11 +147,16 @@ Token *tokenize(char *p) {
       continue;
     }
 
+    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
+      cur = new_token(TK_RETURN, cur, "return ", 6);
+      p += 6;
+      continue;
+    }
     
-    if ('a' <= *p && *p <= 'z') {
+    if (is_al(*p)) {
       char *var_str = calloc(128, sizeof(char));
       int var_length = 0;
-      while ('a' <= *p && *p <= 'z') {
+      while (is_alnum(*p)) {
         var_str[var_length] = *p;
         var_length++;
         p++;

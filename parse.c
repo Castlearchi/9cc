@@ -6,7 +6,7 @@ static Node *new_num(int val);
 static LVar *find_lvar(Token **tok, LVar **locals);
 /*
   program    = stmt*
-  stmt       = expr ";"
+  stmt       = expr ";" | "return" expr ";"
   expr       = assign
   assign     = equality ("=" assign)?
   equality   = relational ("==" relational | "!=" relational)*
@@ -71,9 +71,15 @@ static int program(Node **code, Token **tok) {
   return i;
 }
 
-// stmt = expr ";"
+// stmt = expr ";" | "return" expr ";"
 static Node *stmt(Token **tok, LVar **locals) {
-  Node *node = expr(tok, locals);
+  Node *node;
+  if (consume_return(tok)) {
+    node = new_node(ND_RETURN);
+    node->lhs = expr(tok, locals);
+  } else {
+    node = expr(tok, locals);
+  }
   expect(tok, ";");
   return node;
 }

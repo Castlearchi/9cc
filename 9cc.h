@@ -13,7 +13,8 @@ typedef enum {
   TK_RESERVED, // Keywords or punctuators
   TK_IDENT,    // Identifier
   TK_NUM,      // Integer literals
-  TK_EOF,      // End-of-file markers
+  TK_RETURN,   // "return" keyword
+  TK_EOF       // End-of-file markers
 } TokenKind;
 
 // Token type
@@ -40,6 +41,7 @@ struct LVar {
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
+bool consume_return(Token **tok);
 bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
@@ -63,7 +65,8 @@ typedef enum {
   ND_LE,      // <=
   ND_NUM,     // Integer
   ND_ASSIGN,  // =
-  ND_LVAR     // Local Variable
+  ND_LVAR,    // Local Variable
+  ND_RETURN   // return
 } NodeKind;
 
 // AST node type
