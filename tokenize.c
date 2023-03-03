@@ -95,7 +95,7 @@ void expect(Token **tok, char *op) {
   if ((*tok)->kind != TK_RESERVED ||
       (*tok)->len != strlen(op) ||
       memcmp((*tok)->str, op, (*tok)->len))
-    error_at((*tok)->str, "expected '%s'", op);
+    error_at((*tok)->str, "expected '%s' but got '%s'", op, (*tok)->str);
   
   (*tok) = (*tok)->next;
 }
@@ -182,20 +182,24 @@ Token *tokenize(char *p) {
     }
     if (strncmp(p, "else", 4) == 0) {
       cur = new_token(TK_ELSE, cur, "else", 4);
-      p +=4;
+      p += 4;
+      continue;
     }
     if (strncmp(p, "for", 3) == 0) {
       cur = new_token(TK_FOR, cur, "for", 3);
-      p +=3;
+      p += 3;
+      continue;
     }
     if (strncmp(p, "while", 5) == 0) {
       cur = new_token(TK_WHILE, cur, "while", 5);
-      p +=5;
+      p += 5;
+      continue;
     }
 
     if (strncmp(p, "if", 2) == 0) {
       cur = new_token(TK_IF, cur, "if", 2);
-      p +=2;
+      p += 2;
+      continue;
     }
 
     if (is_al(*p)) {

@@ -86,17 +86,16 @@ static Node *stmt(Token **tok, LVar **locals) {
   if (consume_return(tok)) {
     node = new_node(ND_RETURN);
     node->lhs = expr(tok, locals);
+    expect(tok, ";");
   } else if (consume_if(tok)) {
     node = new_node(ND_IF);
     expect(tok, "(");
     node->cond = expr(tok, locals);
     expect(tok, ")");
     node->then = stmt(tok, locals);
-
     if (consume_else(tok)) 
       node = new_node(ND_IFELSE);
       node = stmt(tok, locals);
-
   } else if (consume_while(tok)) {
     node = new_node(ND_WHILE);
     expect(tok, "(");
@@ -117,8 +116,8 @@ static Node *stmt(Token **tok, LVar **locals) {
     node->then = stmt(tok, locals);
   } else {
     node = expr(tok, locals);
+    expect(tok, ";");
   }
-  expect(tok, ";");
   return node;
 }
 

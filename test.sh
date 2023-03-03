@@ -23,5 +23,5 @@ assert 5 "a = 4;b = 5;b;"
 assert 14 "a = 3;b = 5 * 6 - 8;a + b / 2;"
 assert 4 "return 4;"
 assert 20 "foo = 4;bar = 2 + 3;return foo * bar;"
-assert 6 "if(1<2)return 6;"
+assert 6 "a=4;if(1<2)a=6;a;"
 echo OK
