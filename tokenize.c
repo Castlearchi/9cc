@@ -55,6 +55,34 @@ bool consume_return(Token **tok) {
   return true;
 }
 
+bool consume_if(Token **tok) {
+  if((*tok)->kind != TK_IF) 
+    return false;
+  (*tok) = (*tok)->next;
+  return true;
+}
+
+bool consume_else (Token **tok) {
+  if((*tok)->kind != TK_ELSE) 
+    return false;
+  (*tok) = (*tok)->next;
+  return true;
+}
+
+bool consume_while(Token **tok) {
+  if((*tok)->kind != TK_WHILE) 
+    return false;
+  (*tok) = (*tok)->next;
+  return true;
+}
+
+bool consume_for(Token **tok) {
+  if((*tok)->kind != TK_FOR) 
+    return false;
+  (*tok) = (*tok)->next;
+  return true;
+}
+
 bool expect_ident(Token **tok) {
   if((*tok)->kind != TK_IDENT)
     return false;
@@ -152,7 +180,24 @@ Token *tokenize(char *p) {
       p += 6;
       continue;
     }
-    
+    if (strncmp(p, "else", 4) == 0) {
+      cur = new_token(TK_ELSE, cur, "else", 4);
+      p +=4;
+    }
+    if (strncmp(p, "for", 3) == 0) {
+      cur = new_token(TK_FOR, cur, "for", 3);
+      p +=3;
+    }
+    if (strncmp(p, "while", 5) == 0) {
+      cur = new_token(TK_WHILE, cur, "while", 5);
+      p +=5;
+    }
+
+    if (strncmp(p, "if", 2) == 0) {
+      cur = new_token(TK_IF, cur, "if", 2);
+      p +=2;
+    }
+
     if (is_al(*p)) {
       char *var_str = calloc(128, sizeof(char));
       int var_length = 0;

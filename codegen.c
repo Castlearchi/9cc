@@ -13,7 +13,33 @@ static void gen_lval(Node *node) {
 }
 
 static void gen(Node *node) {
+  static unsigned int Lnum = 0;        // Lnum is serial number for control statement.
   switch (node->kind) {
+  case ND_IF:
+    /*  
+  Aをコンパイルしたコード // スタックトップに結果が入っているはず
+  pop rax
+  cmp rax, 0
+  je  .LendXXX
+  Bをコンパイルしたコード
+.LendXXX:
+*/
+    gen(node->cond);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je  .Lend%d\n", Lnum);
+    gen(node->then);
+    printf(".Lend%d\n", Lnum++);
+    return;
+  case ND_IFELSE:
+
+    return;
+  case ND_FOR:
+
+    return;
+  case ND_WHILE:
+
+    return;
   case ND_RETURN:
     gen(node->lhs);
     printf("  pop rax\n");

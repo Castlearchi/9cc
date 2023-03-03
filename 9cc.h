@@ -14,6 +14,10 @@ typedef enum {
   TK_IDENT,    // Identifier
   TK_NUM,      // Integer literals
   TK_RETURN,   // "return" keyword
+  TK_IF,       // "if" keyword
+  TK_ELSE,     // "else" keyword
+  TK_WHILE,    // "while" keyword
+  TK_FOR,      // "for" keyword
   TK_EOF       // End-of-file markers
 } TokenKind;
 
@@ -42,6 +46,10 @@ void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
 bool consume_return(Token **tok);
+bool consume_if(Token **tok);
+bool consume_else(Token **tok);
+bool consume_while(Token **tok);
+bool consume_for(Token **tok);
 bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
@@ -66,15 +74,27 @@ typedef enum {
   ND_NUM,     // Integer
   ND_ASSIGN,  // =
   ND_LVAR,    // Local Variable
-  ND_RETURN   // return
+  ND_RETURN,  // return
+  ND_IF,      // if
+  ND_IFELSE,  // if ... else ...
+  ND_ELSE,    // else
+  ND_WHILE,   // while
+  ND_FOR      // for
 } NodeKind;
 
 // AST node type
 typedef struct Node Node;
 struct Node {
   NodeKind kind; // Node kind
+
   Node *lhs;     // Left-hand side
   Node *rhs;     // Right-hand side
+
+  Node *cond;    // Conditional expressions
+  Node *then;    // Run Statement by conditional expressions
+  Node *els;     // else statement
+  Node *init;    // For initialization
+  Node *inc;     // For increment
   int val;       // Used if kind == ND_NUM
   int offset;    // Used if kind == ND_NUM
 };
