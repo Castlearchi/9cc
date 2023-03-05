@@ -14,31 +14,51 @@ static void gen_lval(Node *node) {
 
 static void gen(Node *node) {
   static unsigned int Lnum = 0;        // Lnum is serial number for control statement.
+
   switch (node->kind) {
   case ND_IF:
-    /*  
-  Aをコンパイルしたコード // スタックトップに結果が入っているはず
-  pop rax
-  cmp rax, 0
-  je  .LendXXX
-  Bをコンパイルしたコード
-.LendXXX:
-*/
     gen(node->cond);
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .Lend%d\n", Lnum);
     gen(node->then);
-    printf(".Lend%d\n", Lnum++);
+    printf(".Lend%d:\n", Lnum++);
     return;
   case ND_IFELSE:
-
+    gen(node->cond);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je  .Lelse%d\n", Lnum);
+    gen(node->then);
+    printf("  jmp .Lend%d\n", Lnum);
+    printf(".Lelse%d:\n", Lnum);
+    gen(node->els);
+    printf(".Lend%d:\n", Lnum++);
     return;
   case ND_FOR:
-
+    if (node->init) 
+      gen(node->init);
+    printf(".Lbegin%d:\n", Lnum);
+    if (node->cond)
+      gen(node->cond);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je  .Lend%d\n", Lnum);
+    if (node->inc)
+      gen(node->inc);
+    gen(node->then);
+    printf("  jmp .Lbegin%d\n", Lnum);
+    printf(".Lend%d:\n", Lnum);
     return;
   case ND_WHILE:
-
+    printf(".Lbegin%d:\n", Lnum);
+    gen(node->cond);
+    printf("  pop rax\n");
+    printf("  cmp rax, 0\n");
+    printf("  je  .Lend%d\n", Lnum);
+    gen(node->then);
+    printf("  jmp .Lbegin%d\n", Lnum);
+    printf(".Lend%d:\n", Lnum++);
     return;
   case ND_RETURN:
     gen(node->lhs);

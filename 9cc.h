@@ -79,7 +79,7 @@ typedef enum {
   ND_IFELSE,  // if ... else ...
   ND_ELSE,    // else
   ND_WHILE,   // while
-  ND_FOR      // for
+  ND_FOR,     // for
 } NodeKind;
 
 // AST node type
@@ -89,6 +89,8 @@ struct Node {
 
   Node *lhs;     // Left-hand side
   Node *rhs;     // Right-hand side
+
+  bool *eof;     // EOF of Node.
 
   Node *cond;    // Conditional expressions
   Node *then;    // Run Statement by conditional expressions

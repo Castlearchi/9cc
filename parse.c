@@ -37,6 +37,7 @@ static Node *primary(Token **tok, LVar **locals);
 static Node *new_node(NodeKind kind) {
   Node *node = calloc(1, sizeof(Node));
   node->kind = kind;
+  node->eof = false;
   return node;
 }
 
@@ -71,8 +72,13 @@ static int program(Node **code, Token **tok) {
 
   while (!at_eof(tok)) {
     code[i] = malloc(sizeof(Node));
-    *code[i++] = *stmt(tok, locals);
+    code[i] = stmt(tok, locals);
+    if (code[i]->eof) {
+      return i+1;
+    }
+    i++;
   }
+  code[i-1]->eof = true;
   return i;
 }
 
@@ -83,6 +89,13 @@ static int program(Node **code, Token **tok) {
 //            | "for" (" expr? ";" expr? ";" expr? ")" stmt
 static Node *stmt(Token **tok, LVar **locals) {
   Node *node;
+  if (at_eof(tok)) {
+    node = calloc(1, sizeof(Node));
+    node->eof = true;
+    return node;
+  }
+    
+
   if (consume_return(tok)) {
     node = new_node(ND_RETURN);
     node->lhs = expr(tok, locals);
@@ -93,9 +106,10 @@ static Node *stmt(Token **tok, LVar **locals) {
     node->cond = expr(tok, locals);
     expect(tok, ")");
     node->then = stmt(tok, locals);
-    if (consume_else(tok)) 
-      node = new_node(ND_IFELSE);
-      node = stmt(tok, locals);
+    if (consume_else(tok)) {
+      node->kind = ND_IFELSE;
+      node->els = stmt(tok, locals);
+    }
   } else if (consume_while(tok)) {
     node = new_node(ND_WHILE);
     expect(tok, "(");
@@ -105,10 +119,14 @@ static Node *stmt(Token **tok, LVar **locals) {
   } else if (consume_for(tok)) {
     node = new_node(ND_FOR);
     expect(tok, "(");
-    if (!consume(tok, ";"))
+    if (!consume(tok, ";")) {
       node->init = expr(tok, locals);
-    if (!consume(tok, ";")) 
+      expect(tok, ";");
+    }
+    if (!consume(tok, ";")) {
       node->cond = expr(tok, locals);
+      expect(tok, ";");
+    }
     if (!consume(tok, ")")) {
       node->inc = expr(tok, locals);
       expect(tok, ")");
@@ -207,7 +225,6 @@ static Node *unary(Token **tok, LVar **locals) {
 
 // primary = num | ident | "(" expr ")"
 static Node *primary(Token **tok, LVar **locals) {
-
   if (consume(tok, "(")) {
     Node *node = expr(tok, locals);
     expect(tok, ")");
