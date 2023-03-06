@@ -7,11 +7,11 @@ static LVar *find_lvar(Token **tok, LVar **locals);
 /*
   program    = stmt*
   stmt       = expr ";" 
+              | "{" stmt* "}"
               | "return" expr ";"
               | "if" "(" expr ")" stmt ("else" stmt)? 
               | "while" "(" expr ")" stmt
               | "for" (" expr? ";" expr? ";" expr ")" stmt
-
   expr       = assign
   assign     = equality ("=" assign)?
   equality   = relational ("==" relational | "!=" relational)*
@@ -83,6 +83,7 @@ static int program(Node **code, Token **tok) {
 }
 
 // stmt       = expr ";" 
+//            | "{" stmt* "}"
 //            | "return" expr ";"
 //            | "if" "(" expr ")" stmt ("else" stmt)? 
 //            | "while" "(" expr ")" stmt
@@ -96,7 +97,20 @@ static Node *stmt(Token **tok, LVar **locals) {
   }
     
 
-  if (consume_return(tok)) {
+  if (consume(tok, "{")) {
+    node = new_node(ND_BLOCK);
+    node->block_size = 4;
+    node->block = calloc(node->block_size, sizeof(Node*));
+    int count = 0;
+    while (!consume(tok, "}")) {
+      if (count > (node->block_size)) {
+        (node->block_size) *= 2;
+        node->block = realloc(node->block_size, sizeof(Node*));
+      }
+      node->block[count++] = stmt(tok, locals);
+    }
+    node->block_count = count;
+  } else if (consume_return(tok)) {
     node = new_node(ND_RETURN);
     node->lhs = expr(tok, locals);
     expect(tok, ";");

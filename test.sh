@@ -29,4 +29,5 @@ assert 7 "num=9;if(3>4)num=num-1;else num=num-2;"
 assert 5 "i=0;while(i<5) i=i+1; return i;"
 assert 6 "for(i=0;i<3;i = i+1) i = 2 * i;return i;"
 assert 3 "for(i=0;i<3;) i = 1 + i;return i;"
+assert 4 "{AaAaaAaaA = 3;Aaaa = 4; if (AaAaaAaaA < 2 * Aaaa) { AaAaaAaaA = 12; return Aaaa;} return AaAaaAaaA;}"
 echo OK

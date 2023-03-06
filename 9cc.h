@@ -80,6 +80,7 @@ typedef enum {
   ND_ELSE,    // else
   ND_WHILE,   // while
   ND_FOR,     // for
+  ND_BLOCK    // { ... }
 } NodeKind;
 
 // AST node type
@@ -97,8 +98,13 @@ struct Node {
   Node *els;     // else statement
   Node *init;    // For initialization
   Node *inc;     // For increment
+
   int val;       // Used if kind == ND_NUM
   int offset;    // Used if kind == ND_NUM
+
+  Node **block;   // Block
+  size_t block_size;   //Block size
+  int block_count;     //Block count
 };
 
 int parse(Node **code, Token **tok);

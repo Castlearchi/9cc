@@ -16,6 +16,12 @@ static void gen(Node *node) {
   static unsigned int Lnum = 0;        // Lnum is serial number for control statement.
 
   switch (node->kind) {
+  case ND_BLOCK:
+    for (int i = 0; i < (node->block_count); i++) {
+      gen(node->block[i]);
+      printf("  pop rax\n");
+    }
+    return;
   case ND_IF:
     gen(node->cond);
     printf("  pop rax\n");
@@ -85,6 +91,7 @@ static void gen(Node *node) {
     printf("  mov [rax], rdi\n");
     printf("  push rdi\n");
     return;
+  default:
   }
 
   gen(node->lhs);
@@ -127,6 +134,7 @@ static void gen(Node *node) {
     printf("  setle al\n");
     printf("  movzb rax, al\n");
     break;
+  default:
   }
   printf("  push rax\n");
 }
