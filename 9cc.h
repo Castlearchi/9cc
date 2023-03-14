@@ -80,7 +80,8 @@ typedef enum {
   ND_ELSE,    // else
   ND_WHILE,   // while
   ND_FOR,     // for
-  ND_BLOCK    // { ... }
+  ND_BLOCK,   // { ... }
+  ND_FUNC     // func
 } NodeKind;
 
 // AST node type

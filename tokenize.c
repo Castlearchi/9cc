@@ -87,7 +87,7 @@ bool expect_ident(Token **tok) {
   if((*tok)->kind != TK_IDENT)
     return false;
   else
-    true;
+    return true;
 }
 
 // Ensure that the current token is `op`.

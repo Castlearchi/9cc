@@ -19,7 +19,9 @@ static LVar *find_lvar(Token **tok, LVar **locals);
   add        = mul ("+" mul | "-" mul)*
   mul        = unary ("*" unary | "/" unary)*
   unary      = ("+" | "-")? primary
-  primary    = num | ident | "(" expr ")"
+  primary    = num 
+              | ident ( "(" ")" )?
+              | "(" expr ")"
 */
 
 static int program(Node **code, Token **tok);
@@ -237,16 +239,18 @@ static Node *unary(Token **tok, LVar **locals) {
   return primary(tok, locals);
 }
 
-// primary = num | ident | "(" expr ")"
+// primary = num 
+//        | ident ( "(" ")" )?
+//        | "(" expr ")"
 static Node *primary(Token **tok, LVar **locals) {
   if (consume(tok, "(")) {
     Node *node = expr(tok, locals);
     expect(tok, ")");
     return node;
   }
-  
   if(expect_ident(tok)) {
-    Node *node = new_node(ND_LVAR);
+    Node *node = calloc(1, sizeof(Node));
+    node->eof = false;
     LVar *lvar = find_lvar(tok, locals);
     if (lvar) {
       node->offset = lvar->offset;
@@ -260,9 +264,14 @@ static Node *primary(Token **tok, LVar **locals) {
       *locals = lvar;
     }
     (*tok) = (*tok)->next;
+    if (consume(tok, "(")) {
+      node->kind = ND_FUNC;
+      expect(tok, ")");
+    } else {
+      node->kind = ND_LVAR;
+    }
     return node;
   }
-
   return new_num(expect_number(tok));;
 }
 

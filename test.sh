@@ -16,6 +16,16 @@ assert() {
   fi
 }
 
+file_debug() {
+  input="$1"
+
+  ./9cc "$input" > tmp.s
+  cc -c tmp.s -o tmp.o
+  cc -o tmp tmp.o test/test.o
+  ./tmp
+  echo $?
+}
+
 assert 100 "100;"
 assert 22 "5 * 6 - 8;"
 assert 3 "a = 3;a;"
@@ -30,4 +40,6 @@ assert 5 "i=0;while(i<5) i=i+1; return i;"
 assert 6 "for(i=0;i<3;i = i+1) i = 2 * i;return i;"
 assert 3 "for(i=0;i<3;) i = 1 + i;return i;"
 assert 4 "{AaAaaAaaA = 3;Aaaa = 4; if (AaAaaAaaA < 2 * Aaaa) { AaAaaAaaA = 12; return Aaaa;} return AaAaaAaaA;}"
+
+file_debug "foo();"
 echo OK
