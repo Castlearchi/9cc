@@ -20,7 +20,7 @@ static LVar *find_lvar(Token **tok, LVar **locals);
   mul        = unary ("*" unary | "/" unary)*
   unary      = ("+" | "-")? primary
   primary    = num 
-              | ident ( "(" ")" )?
+              | ident ( "(" (num ("," num)* )? ")" )?
               | "(" expr ")"
 */
 
@@ -240,7 +240,7 @@ static Node *unary(Token **tok, LVar **locals) {
 }
 
 // primary = num 
-//        | ident ( "(" ")" )?
+//        | ident ( "(" (num ("," num)* )? ")" )?
 //        | "(" expr ")"
 static Node *primary(Token **tok, LVar **locals) {
   if (consume(tok, "(")) {
@@ -251,6 +251,7 @@ static Node *primary(Token **tok, LVar **locals) {
   if(expect_ident(tok)) {
     Node *node = calloc(1, sizeof(Node));
     node->eof = false;
+    node->lvar_name = (*tok)->str;
     LVar *lvar = find_lvar(tok, locals);
     if (lvar) {
       node->offset = lvar->offset;
@@ -266,13 +267,25 @@ static Node *primary(Token **tok, LVar **locals) {
     (*tok) = (*tok)->next;
     if (consume(tok, "(")) {
       node->kind = ND_FUNC;
+      int count_para = 0;
+      node->parameter = calloc(6, sizeof(int));
+      if ((*tok)->kind == TK_NUM) {
+        node->parameter[count_para++] = expect_number(tok);
+        for(;;) {
+          if (consume(tok, ","))
+            node->parameter[count_para++] = expect_number(tok);
+          else
+            break;
+        } 
+      }
+      node->parameter_num = count_para;
       expect(tok, ")");
     } else {
       node->kind = ND_LVAR;
     }
     return node;
   }
-  return new_num(expect_number(tok));;
+  return new_num(expect_number(tok));
 }
 
 

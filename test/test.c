@@ -1,3 +1,4 @@
 #include <stdio.h>
 
-int foo() {printf("OK, foo() is successhully called.");return 0;}
+int foo() {printf("foo() OK\n");}
+int foo_add(int x, int y) { printf("foo_add(%d, %d) = %d\n", x, y, x + y);}

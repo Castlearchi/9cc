@@ -21,9 +21,13 @@ file_debug() {
 
   ./9cc "$input" > tmp.s
   cc -c tmp.s -o tmp.o
+  cc -c test/test.c -o test/test.o
   cc -o tmp tmp.o test/test.o
-  ./tmp
-  echo $?
+  if [[ -f tmp ]]; then
+    ./tmp
+  else
+    echo "Compilation error"
+  fi
 }
 
 assert 100 "100;"
@@ -42,4 +46,6 @@ assert 3 "for(i=0;i<3;) i = 1 + i;return i;"
 assert 4 "{AaAaaAaaA = 3;Aaaa = 4; if (AaAaaAaaA < 2 * Aaaa) { AaAaaAaaA = 12; return Aaaa;} return AaAaaAaaA;}"
 
 file_debug "foo();"
+file_debug "foo_add(4, 6);"
+
 echo OK

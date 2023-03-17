@@ -94,18 +94,22 @@ struct Node {
 
   bool *eof;     // EOF of Node.
 
-  Node *cond;    // Conditional expressions
-  Node *then;    // Run Statement by conditional expressions
-  Node *els;     // else statement
-  Node *init;    // For initialization
-  Node *inc;     // For increment
+  Node *cond;            // Conditional expressions
+  Node *then;            // Run Statement by conditional expressions
+  Node *els;             // else statement
+  Node *init;            // For initialization
+  Node *inc;             // For increment
 
-  int val;       // Used if kind == ND_NUM
-  int offset;    // Used if kind == ND_NUM
+  int val;               // Used if kind == ND_NUM
+  int offset;            // Used if kind == ND_NUM
 
-  Node **block;   // Block
-  size_t block_size;   //Block size
-  int block_count;     //Block count
+  Node **block;          // Block
+  size_t block_size;     // Block size
+  int block_count;       // Block count
+
+  char *lvar_name;       // Variable name or Function name
+  int *parameter;       // Fucntion parameter value
+  int parameter_num;     // Number of Fucntion parameters
 };
 
 int parse(Node **code, Token **tok);

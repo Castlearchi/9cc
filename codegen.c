@@ -14,9 +14,30 @@ static void gen_lval(Node *node) {
 }
 
 static void gen_func(Node *node) {
-  printf("  lea rax, [rip + foo]\n");  // Add the relative address of the 'foo'
-  printf("  call rax\n");              // Call the function whose address is stored in the rax register.
+  printf("  push rbp\n");
+  printf("  mov rbp, rsp\n");
+  printf("  sub rsp, 8\n");
+  printf("  and rsp, -16\n");
+
+  
+  // load parameter values into registers and push them onto the stack
+  int i = 0;
+  printf("  mov rdi, %d\n", node->parameter[i++]);
+  printf("  mov rsi, %d\n", node->parameter[i++]);
+  printf("  mov rdx, %d\n", node->parameter[i++]);
+  printf("  mov rcx, %d\n", node->parameter[i++]);
+  printf("  mov r8, %d\n", node->parameter[i++]);
+  printf("  mov r9, %d\n", node->parameter[i++]);
+  
+  printf("  call %s\n", node->lvar_name);
+
+  // adjust stack pointer after function call
+  printf("  add rsp, %d\n", 8 * 6);
+
+  printf("  mov rsp, rbp\n");
+  printf("  pop rbp\n");
 }
+
 
 static void gen(Node *node) {
   static unsigned int Lnum = 0;        // Lnum is serial number for control statement.
