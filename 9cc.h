@@ -87,12 +87,12 @@ typedef enum {
 // AST node type
 typedef struct Node Node;
 struct Node {
-  NodeKind kind; // Node kind
+  NodeKind kind;         // Node kind
 
-  Node *lhs;     // Left-hand side
-  Node *rhs;     // Right-hand side
+  Node *lhs;             // Left-hand side
+  Node *rhs;             // Right-hand side
 
-  bool *eof;     // EOF of Node.
+  bool *eof;             // EOF of Node.
 
   Node *cond;            // Conditional expressions
   Node *then;            // Run Statement by conditional expressions
@@ -108,14 +108,22 @@ struct Node {
   int block_count;       // Block count
 
   char *lvar_name;       // Variable name or Function name
-  int *parameter;       // Fucntion parameter value
+  int *parameter;        // Fucntion parameter value
   int parameter_num;     // Number of Fucntion parameters
 };
 
-int parse(Node **code, Token **tok);
+typedef struct {
+  Node **stmts;          // Statement list
+  int stmt_count;        // Number of statements
+
+  char *funcname;        // Func name
+  int parameter_num;     // Number of Fucntion parameters       
+} TopLevelNode;
+
+int parse(TopLevelNode *tlnodes, Token **tok);
 
 
 //
 // codegen.c
 //
-void codegen(Node **node, int code_num);
+void codegen(TopLevelNode *tlnodes, int func_num);

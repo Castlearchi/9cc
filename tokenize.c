@@ -10,7 +10,7 @@ bool consume_return(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
 bool is_al(char character);
-int is_alnum(char character);
+bool is_alnum(char character);
 bool at_eof(Token **tok);
 static Token *new_token(TokenKind kind, Token *cur, char *str, int len);
 static bool startswith(char *p, char *q);
@@ -115,7 +115,7 @@ bool is_al(char character) {
          (character == '_');
 }
 
-int is_alnum(char character) {
+bool is_alnum(char character) {
   return ('a' <= character && character <= 'z') ||
          ('A' <= character && character <= 'Z') ||
          ('0' <= character && character <= '9') ||

@@ -30,22 +30,12 @@ file_debug() {
   fi
 }
 
-assert 100 "100;"
-assert 22 "5 * 6 - 8;"
-assert 3 "a = 3;a;"
-assert 5 "a = 4;b = 5;b;"
-assert 14 "a = 3;b = 5 * 6 - 8;a + b / 2;"
-assert 4 "return 4;"
-assert 20 "foo = 4;bar = 2 + 3;return foo * bar;"
-assert 3 "if(2)return 3;"
-assert 6 "a=4;if(1<2)a=6;a;"
-assert 7 "num=9;if(3>4)num=num-1;else num=num-2;"
-assert 5 "i=0;while(i<5) i=i+1; return i;"
-assert 6 "for(i=0;i<3;i = i+1) i = 2 * i;return i;"
-assert 3 "for(i=0;i<3;) i = 1 + i;return i;"
-assert 4 "{AaAaaAaaA = 3;Aaaa = 4; if (AaAaaAaaA < 2 * Aaaa) { AaAaaAaaA = 12; return Aaaa;} return AaAaaAaaA;}"
-
-file_debug "foo();"
-file_debug "foo_add(4, 6);"
+assert 5 "main(){return 5;}"
+assert 20 "main(){a = 5; b = 4;return a*b;}"
+assert 4 "main(){a=3;if(a){a=4;}return a;}"
+assert 10 "main(){a=10;return a;}sub_func(a, b){return (a - b);}"
+assert 34 "func(){return 34;}main(){a=3;return func();}"
+assert 3 "sub_func(a, b){return (a - b);}main(){a=3;return a;}"
+assert 68 "sub_func(a, b){return (a - b);}main(){return sub_func(100, 32);}"
 
 echo OK

@@ -5,7 +5,8 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_num(int val);
 static LVar *find_lvar(Token **tok, LVar **locals);
 /*
-  program    = stmt*
+  program    = func*
+  func       = ident ( "(" (num ("," num)* )? ")" )? "{" stmt* "}"
   stmt       = expr ";" 
               | "{" stmt* "}"
               | "return" expr ";"
@@ -24,7 +25,8 @@ static LVar *find_lvar(Token **tok, LVar **locals);
               | "(" expr ")"
 */
 
-static int program(Node **code, Token **tok);
+static int program(TopLevelNode *tlnodes, Token **tok);
+static TopLevelNode func(Token **tok);
 static Node *stmt(Token **tok, LVar **locals);
 static Node *expr(Token **tok, LVar **locals);
 static Node *assign(Token **tok, LVar **locals);
@@ -64,24 +66,78 @@ LVar *find_lvar(Token **tok, LVar **locals) {
   return NULL;
 }
 
-// program = stmt*
-static int program(Node **code, Token **tok) {
-  int i = 0;
-  LVar **locals =(LVar**)calloc(1, sizeof(LVar*));
+// program = func*
+static int program(TopLevelNode *tlnodes, Token **tok) {
+  int func_num = 0;
+  while (!at_eof(tok)) {
+    tlnodes[func_num++] = func(tok);
+  }
+
+  return func_num;
+}
+
+// func = ident ( "(" (ident ("," ident)* )? ")" )? "{" stmt* "}"
+static TopLevelNode func(Token **tok) {
+  TopLevelNode tlnode;
+  LVar **locals = (LVar**)calloc(1, sizeof(LVar*));
   *locals = (LVar*)calloc(1, sizeof(LVar));
   (*locals)->offset = 0;
   (*locals)->next = NULL;
 
-  while (!at_eof(tok)) {
-    code[i] = malloc(sizeof(Node));
-    code[i] = stmt(tok, locals);
-    if (code[i]->eof) {
-      return i+1;
+  if (!expect_ident(tok))
+    error("Here should be function name.");
+  tlnode.funcname = (*tok)->str;
+  (*tok) = (*tok)->next;
+
+  expect(tok, "(");
+
+  int parameter_num = 0;
+  if ((*tok)->kind == TK_IDENT) {
+    LVar *lvar = find_lvar(tok, &locals);
+    if (lvar) {
+      error("引数の名前に被りがあります\n");
+    } else {
+      parameter_num++;
+      lvar = calloc(1, sizeof(LVar));
+      lvar->next = *locals;
+      lvar->name = (*tok)->str;
+      lvar->len = (*tok)->len;
+      lvar->offset = (*locals)->offset + 8;
+      *locals = lvar;
     }
-    i++;
+    (*tok) = (*tok)->next;
+    while (consume(tok, ",")) {
+      parameter_num++;
+      lvar = find_lvar(tok, locals);
+      if (lvar) {
+        error("関数の引数の名前に被りがあります\n");
+      } else {
+        lvar = calloc(1, sizeof(LVar));
+        lvar->next = *locals;
+        lvar->name = (*tok)->str;
+        lvar->len = (*tok)->len;
+        lvar->offset = (*locals)->offset + 8;
+        *locals = lvar;
+      }
+      (*tok) = (*tok)->next;
+    }
+  } 
+  tlnode.parameter_num = parameter_num;
+
+
+  expect(tok, ")");
+
+  expect(tok, "{");
+
+  tlnode.stmts = calloc(1, sizeof(Node *));
+  tlnode.stmt_count = 0;
+  while (!consume(tok, "}")) {
+    tlnode.stmt_count++;
+    tlnode.stmts = realloc(tlnode.stmts, sizeof(Node *) * tlnode.stmt_count);
+    tlnode.stmts[tlnode.stmt_count - 1] = stmt(tok, locals);
   }
-  code[i-1]->eof = true;
-  return i;
+
+  return tlnode;
 }
 
 // stmt       = expr ";" 
@@ -289,7 +345,6 @@ static Node *primary(Token **tok, LVar **locals) {
 }
 
 
-int parse(Node **code, Token **tok) {
-  int code_num = program(code, tok);
-  return code_num;
+int parse(TopLevelNode *tlnodes, Token **tok) {
+  return program(tlnodes, tok);
 }
