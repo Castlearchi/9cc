@@ -2,6 +2,7 @@
 
 static Node *new_node(NodeKind kind);
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
+static Node *new_unary(NodeKind kind, Node *rhs);
 static Node *new_num(int val);
 static LVar *find_lvar(Token **tok, LVar **locals);
 /*
@@ -19,7 +20,10 @@ static LVar *find_lvar(Token **tok, LVar **locals);
   relational = add ("<" add | "<=" add | ">" add | ">=" add)*
   add        = mul ("+" mul | "-" mul)*
   mul        = unary ("*" unary | "/" unary)*
-  unary      = ("+" | "-")? primary
+  unary      = "+"? primary
+              | "-"? primary
+              | "*" unary
+              | "&" unary
   primary    = num 
               | ident ( "(" (num ("," num)* )? ")" )?
               | "(" expr ")"
@@ -46,6 +50,19 @@ static Node *new_node(NodeKind kind) {
 }
 
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs) {
+  Node *node = new_node(kind);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+static Node *new_unary(NodeKind kind, Node *rhs) {
+  Node *node = new_node(kind);
+  node->rhs = rhs;
+  return node;
+}
+
+static Node *new_(NodeKind kind, Node *lhs, Node *rhs) {
   Node *node = new_node(kind);
   node->lhs = lhs;
   node->rhs = rhs;
@@ -285,14 +302,27 @@ static Node *mul(Token **tok, LVar **locals) {
   }
 }
 
-// unary = ("+" | "-")? primary
+// unary      = "+"? primary
+//             | "-"? primary
+//             | "*" unary
+//             | "&" unary
 static Node *unary(Token **tok, LVar **locals) {
   if(consume(tok, "+"))
-    return unary(tok, locals);
+    return new_binary(ND_ADD, new_num(0), primary(tok, locals));
+    //return new_unary(ND_ADD, primary(tok, locals));
 
-  if(consume(tok, "-"))
-    return new_binary(ND_SUB, new_num(0), unary(tok, locals));
-  return primary(tok, locals);
+  else if(consume(tok, "-"))
+    return new_binary(ND_SUB, new_num(0), primary(tok, locals));
+    //return new_unary(ND_SUB, primary(tok, locals));
+
+  else if(consume(tok, "*"))
+    return new_unary(ND_ADDR, unary(tok, locals));
+
+  else if(consume(tok, "&"))
+    return new_unary(ND_DEREF, unary(tok, locals));
+
+  else
+    return primary(tok, locals);
 }
 
 // primary = num 

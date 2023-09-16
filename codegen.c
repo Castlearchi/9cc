@@ -7,7 +7,8 @@ static void gen_definefunc(Node *node, int code_num);
 
 static char *regargs[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
-static void gen_lval(Node *node) {
+static void gen_lval(Node *node)
+{
   if (node->kind != ND_LVAR)
     error("代入の左辺値が変数ではありません");
 
@@ -16,19 +17,19 @@ static void gen_lval(Node *node) {
   printf("  push rax\n");
 }
 
-static void gen_callfunc(Node *node) {
+static void gen_callfunc(Node *node)
+{
   /*  printf("  push rbp\n");
   printf("  mov rbp, rsp\n");
   printf("  sub rsp, 8\n");
   printf("  and rsp, -16\n");*/
 
-
-  
   // load parameter values into registers and push them onto the stack
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 6; i++)
+  {
     printf("  mov %s, %d\n", regargs[i], node->parameter[i]);
   }
-  
+
   printf("  call %s\n", node->lvar_name);
 
   printf("  push rax\n");
@@ -40,13 +41,15 @@ static void gen_callfunc(Node *node) {
   printf("  ret\n");*/
 }
 
-
-static void gen(Node *node) {
-  static unsigned int Lnum = 0;        // Lnum is serial number for control statement.
-  //printf("debug %d\n", node->kind);
-  switch (node->kind) {
+static void gen(Node *node)
+{
+  static unsigned int Lnum = 0; // Lnum is serial number for control statement.
+  // printf("debug %d\n", node->kind);
+  switch (node->kind)
+  {
   case ND_BLOCK:
-    for (int i = 0; i < (node->block_count); i++) {
+    for (int i = 0; i < (node->block_count); i++)
+    {
       gen(node->block[i]);
       printf("  pop rax\n");
     }
@@ -71,7 +74,7 @@ static void gen(Node *node) {
     printf(".Lend%d:\n", Lnum++);
     return;
   case ND_FOR:
-    if (node->init) 
+    if (node->init)
       gen(node->init);
     printf(".Lbegin%d:\n", Lnum);
     if (node->cond)
@@ -79,9 +82,9 @@ static void gen(Node *node) {
     printf("  pop rax\n");
     printf("  cmp rax, 0\n");
     printf("  je  .Lend%d\n", Lnum);
+    gen(node->then);
     if (node->inc)
       gen(node->inc);
-    gen(node->then);
     printf("  jmp .Lbegin%d\n", Lnum);
     printf(".Lend%d:\n", Lnum);
     return;
@@ -132,7 +135,8 @@ static void gen(Node *node) {
   printf("  pop rdi\n");
   printf("  pop rax\n");
 
-  switch (node->kind) {
+  switch (node->kind)
+  {
   case ND_ADD:
     printf("  add rax, rdi\n");
     break;
@@ -166,12 +170,22 @@ static void gen(Node *node) {
     printf("  setle al\n");
     printf("  movzb rax, al\n");
     break;
+  case ND_ADDR:
+    gen_lval(node->lhs);
+    return;
+  case ND_DEREF:
+    gen(node->lhs);
+    printf("  pop rax\n");
+    printf("  mov rax, [rax]\n");
+    printf("  push rax\n");
+    return;
   default:
   }
   printf("  push rax\n");
 }
 
-static void definefunc(Node **code, int code_num, int regargs_num){
+static void definefunc(Node **code, int code_num, int regargs_num)
+{
   // Allocate memory for 26 variables.
   printf("  push rbp\n");
   printf("  mov rbp, rsp\n");
@@ -179,35 +193,38 @@ static void definefunc(Node **code, int code_num, int regargs_num){
 
   // Stack regargs into rbp
   printf("  push rax\n");
-  for (int i = 0; i < regargs_num; i++) {
+  for (int i = 0; i < regargs_num; i++)
+  {
     printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", (i+1)*8);
+    printf("  sub rax, %d\n", (i + 1) * 8);
     printf("  mov [rax], %s\n", regargs[i]);
   }
   printf("  pop rax\n");
-  
+
   // Traverse the AST to emit assembly.
-  for (int i = 0; i < code_num; i++) {
+  for (int i = 0; i < code_num; i++)
+  {
     gen(code[i]);
-    // Since there should be one value left in the stack 
+    // Since there should be one value left in the stack
     // as a result of evaluating the expression,
     // make sure to pop it to avoid overflowing the stack.
     printf("  pop rax\n");
   }
-  
+
   // The result of the last expression is stored in RAX,
   // so it becomes the return value.
   printf("  mov rsp, rbp\n");
   printf("  pop rbp\n");
   printf("  ret\n");
 }
-void codegen(TopLevelNode *tlnodes, int func_num){
+void codegen(TopLevelNode *tlnodes, int func_num)
+{
   // Print out the first half of assembly.
   printf(".intel_syntax noprefix\n");
-  for (int i = 0; i < func_num; i++) {
+  for (int i = 0; i < func_num; i++)
+  {
     printf(".global %s\n", tlnodes[i].funcname);
     printf("%s:\n", tlnodes[i].funcname);
     definefunc(tlnodes[i].stmts, tlnodes[i].stmt_count, tlnodes[i].parameter_num);
   }
-  
 }
