@@ -47,6 +47,8 @@ static void gen(Node *node)
   // printf("debug %d\n", node->kind);
   switch (node->kind)
   {
+  case ND_NONE:
+    return;
   case ND_BLOCK:
     for (int i = 0; i < (node->block_count); i++)
     {
