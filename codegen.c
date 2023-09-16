@@ -77,12 +77,17 @@ static void gen(Node *node)
     if (node->init)
       gen(node->init);
     printf(".Lbegin%d:\n", Lnum);
+
     if (node->cond)
+    {
       gen(node->cond);
-    printf("  pop rax\n");
-    printf("  cmp rax, 0\n");
-    printf("  je  .Lend%d\n", Lnum);
+      printf("  pop rax\n");
+      printf("  cmp rax, 0\n");
+      printf("  je  .Lend%d\n", Lnum);
+    }
+
     gen(node->then);
+
     if (node->inc)
       gen(node->inc);
     printf("  jmp .Lbegin%d\n", Lnum);
