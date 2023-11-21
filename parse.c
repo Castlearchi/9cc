@@ -2,9 +2,9 @@
 
 static Node *new_node(NodeKind kind);
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
-static Node *new_unary(NodeKind kind, Node *rhs);
+static Node *new_unary(NodeKind kind, Node *lhs);
 static Node *new_num(int val);
-static LVar *find_lvar(Token **tok, LVar **locals);
+static LVar *find_var(Token **tok, LVar **locals);
 /*
   program    = func*
   func       = ident ( "(" (num ("," num)* )? ")" )? "{" stmt* "}"
@@ -20,17 +20,15 @@ static LVar *find_lvar(Token **tok, LVar **locals);
   relational = add ("<" add | "<=" add | ">" add | ">=" add)*
   add        = mul ("+" mul | "-" mul)*
   mul        = unary ("*" unary | "/" unary)*
-  unary      = "+"? primary
-              | "-"? primary
-              | "*" unary
-              | "&" unary
+  unary      = ("+" | "-" | "*" | "&") unary
+              | primary
   primary    = num
               | ident ( "(" (num ("," num)* )? ")" )?
               | "(" expr ")"
 */
 
-static int program(TopLevelNode *tlnodes, Token **tok);
-static TopLevelNode func(Token **tok);
+static Function *program(Token **tok);
+static Function *func(Token **tok);
 static Node *stmt(Token **tok, LVar **locals);
 static Node *expr(Token **tok, LVar **locals);
 static Node *assign(Token **tok, LVar **locals);
@@ -40,6 +38,7 @@ static Node *add(Token **tok, LVar **locals);
 static Node *mul(Token **tok, LVar **locals);
 static Node *unary(Token **tok, LVar **locals);
 static Node *primary(Token **tok, LVar **locals);
+static Node *funcall(Token **tok, LVar **locals);
 
 static Node *new_node(NodeKind kind)
 {
@@ -57,18 +56,10 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs)
   return node;
 }
 
-static Node *new_unary(NodeKind kind, Node *rhs)
-{
-  Node *node = new_node(kind);
-  node->rhs = rhs;
-  return node;
-}
-
-static Node *new_(NodeKind kind, Node *lhs, Node *rhs)
+static Node *new_unary(NodeKind kind, Node *lhs)
 {
   Node *node = new_node(kind);
   node->lhs = lhs;
-  node->rhs = rhs;
   return node;
 }
 
@@ -79,8 +70,15 @@ static Node *new_num(int val)
   return node;
 }
 
+static Node *new_var_node(LVar *var)
+{
+  Node *node = new_node(ND_VAR);
+  node->var = var;
+  return node;
+}
+
 // Search var name rbut not find return NULL.
-LVar *find_lvar(Token **tok, LVar **locals)
+LVar *find_var(Token **tok, LVar **locals)
 {
   for (LVar *var = *locals; var; var = var->next)
     if (var->len == (*tok)->len && !memcmp((*tok)->str, var->name, var->len))
@@ -89,88 +87,80 @@ LVar *find_lvar(Token **tok, LVar **locals)
 }
 
 // program = func*
-static int program(TopLevelNode *tlnodes, Token **tok)
+static Function *program(Token **tok)
 {
-  int func_num = 0;
+  Function head = {};
+  Function *cur = &head;
   while (!at_eof(tok))
   {
-    tlnodes[func_num++] = func(tok);
+    cur = cur->next = func(tok);
   }
 
-  return func_num;
+  return head.next;
 }
 
 // func = ident ( "(" (ident ("," ident)* )? ")" )? "{" stmt* "}"
-static TopLevelNode func(Token **tok)
+static Function *func(Token **tok)
 {
-  TopLevelNode tlnode;
-  LVar **locals = (LVar **)calloc(1, sizeof(LVar *));
-  *locals = (LVar *)calloc(1, sizeof(LVar));
-  (*locals)->offset = 0;
-  (*locals)->next = NULL;
-
+  int offset = 0;
+  Function *fn = (Function *)calloc(1, sizeof(Function));
+  LVar *params = (LVar *)calloc(1, sizeof(LVar));
+  params->next = NULL;
+  params->offset = offset;
   if (!expect_ident(tok))
     error("Here should be function name.");
-  tlnode.funcname = (*tok)->str;
+  fn->name = (*tok)->str;
   (*tok) = (*tok)->next;
 
   expect(tok, "(");
 
-  int parameter_num = 0;
-  if ((*tok)->kind == TK_IDENT)
+  Token head = {};
+  Token *cur = &head;
+  int regards_num = 0;
+  while (!equal(tok, ")"))
   {
-    LVar *lvar = find_lvar(tok, &locals);
+    if (cur != &head)
+      consume(tok, ",");
+    if ((*tok)->kind != TK_IDENT)
+      error_at((*tok)->str, "Here should be function argument name.");
+    LVar *lvar = find_var(tok, &params);
     if (lvar)
-    {
-      error("引数の名前に被りがあります\n");
-    }
-    else
-    {
-      parameter_num++;
-      lvar = calloc(1, sizeof(LVar));
-      lvar->next = *locals;
-      lvar->name = (*tok)->str;
-      lvar->len = (*tok)->len;
-      lvar->offset = (*locals)->offset + 8;
-      *locals = lvar;
-    }
-    (*tok) = (*tok)->next;
-    while (consume(tok, ","))
-    {
-      parameter_num++;
-      lvar = find_lvar(tok, locals);
-      if (lvar)
-      {
-        error("関数の引数の名前に被りがあります\n");
-      }
-      else
-      {
-        lvar = calloc(1, sizeof(LVar));
-        lvar->next = *locals;
-        lvar->name = (*tok)->str;
-        lvar->len = (*tok)->len;
-        lvar->offset = (*locals)->offset + 8;
-        *locals = lvar;
-      }
-      (*tok) = (*tok)->next;
-    }
+      error_at((*tok)->str, "引数の名前に被りがあります");
+    lvar = calloc(1, sizeof(LVar));
+    lvar->next = params;
+    lvar->name = (*tok)->str;
+    lvar->len = (*tok)->len;
+    lvar->offset = offset = offset + 8;
+    params = lvar;
+    cur = (*tok) = (*tok)->next;
+    regards_num++;
   }
-  tlnode.parameter_num = parameter_num;
-
+  fn->params = params;
+  fn->regards_num = regards_num;
   expect(tok, ")");
-
   expect(tok, "{");
-
-  tlnode.stmts = calloc(1, sizeof(Node *));
-  tlnode.stmt_count = 0;
+  LVar **locals = (LVar **)calloc(1, sizeof(LVar *));
+  *locals = (LVar *)calloc(1, sizeof(LVar));
+  (*locals)->offset = offset;
+  (*locals)->next = params;
+  fn->body = calloc(1, sizeof(Node *));
+  fn->stmt_count = 0;
   while (!consume(tok, "}"))
   {
-    tlnode.stmt_count++;
-    tlnode.stmts = realloc(tlnode.stmts, sizeof(Node *) * tlnode.stmt_count);
-    tlnode.stmts[tlnode.stmt_count - 1] = stmt(tok, locals);
+    fn->stmt_count++;
+    fn->body = realloc(fn->body, sizeof(Node *) * fn->stmt_count);
+    fn->body[fn->stmt_count - 1] = stmt(tok, locals);
   }
 
-  return tlnode;
+  int stack_size = 0;
+  for (LVar *var = *locals; var->next; var = var->next)
+  {
+    stack_size += 8;
+  }
+  fn->locals = locals;
+  fn->stack_size = stack_size;
+
+  return fn;
 }
 
 // stmt       = expr ";"
@@ -194,46 +184,47 @@ static Node *stmt(Token **tok, LVar **locals)
     node = new_node(ND_BLOCK);
     node->block_size = 4;
     node->block = calloc(node->block_size, sizeof(Node *));
-    int count = 0;
+    size_t count = 0;
     while (!consume(tok, "}"))
     {
       if (count > (node->block_size))
       {
         (node->block_size) *= 2;
-        node->block = realloc(node->block_size, sizeof(Node *));
+        node->block = realloc(node->block, sizeof(Node *) * node->block_size);
       }
       node->block[count++] = stmt(tok, locals);
     }
     node->block_count = count;
   }
-  else if (consume_return(tok))
+  else if (consume(tok, "return"))
   {
     node = new_node(ND_RETURN);
     node->lhs = expr(tok, locals);
     expect(tok, ";");
   }
-  else if (consume_if(tok))
+  else if (consume(tok, "if"))
   {
     node = new_node(ND_IF);
     expect(tok, "(");
     node->cond = expr(tok, locals);
     expect(tok, ")");
     node->then = stmt(tok, locals);
-    if (consume_else(tok))
+    if (consume(tok, "else"))
     {
       node->kind = ND_IFELSE;
       node->els = stmt(tok, locals);
     }
   }
-  else if (consume_while(tok))
+  else if (consume(tok, "while"))
   {
+
     node = new_node(ND_WHILE);
     expect(tok, "(");
     node->cond = expr(tok, locals);
     expect(tok, ")");
     node->then = stmt(tok, locals);
   }
-  else if (consume_for(tok))
+  else if (consume(tok, "for"))
   {
     node = new_node(ND_FOR);
     expect(tok, "(");
@@ -274,7 +265,6 @@ static Node *assign(Token **tok, LVar **locals)
   Node *node = equality(tok, locals);
   if (consume(tok, "="))
     node = new_binary(ND_ASSIGN, node, assign(tok, locals));
-
   return node;
 }
 
@@ -342,98 +332,93 @@ static Node *mul(Token **tok, LVar **locals)
   }
 }
 
-// unary      = "+"? primary
-//             | "-"? primary
-//             | "*" unary
-//             | "&" unary
+// unary      = ("+" | "-" | "*" | "&") unary
+//             | primary
 static Node *unary(Token **tok, LVar **locals)
 {
   if (consume(tok, "+"))
-    return new_binary(ND_ADD, new_num(0), primary(tok, locals));
-  // return new_unary(ND_ADD, primary(tok, locals));
+    return unary(tok, locals);
 
-  else if (consume(tok, "-"))
-    return new_binary(ND_SUB, new_num(0), primary(tok, locals));
-  // return new_unary(ND_SUB, primary(tok, locals));
+  if (consume(tok, "-"))
+    return new_unary(ND_SUB, unary(tok, locals));
 
-  else if (consume(tok, "*"))
-    return new_unary(ND_ADDR, unary(tok, locals));
-
-  else if (consume(tok, "&"))
+  if (consume(tok, "*"))
     return new_unary(ND_DEREF, unary(tok, locals));
 
-  else
-    return primary(tok, locals);
+  if (consume(tok, "&"))
+    return new_unary(ND_ADDR, unary(tok, locals));
+
+  return primary(tok, locals);
 }
 
-// primary = num
-//        | ident ( "(" (num ("," num)* )? ")" )?
-//        | "(" expr ")"
-//        | None
+// primary = "(" expr ")" | ident func-args? | num
 static Node *primary(Token **tok, LVar **locals)
 {
+
   if (consume(tok, "("))
   {
     Node *node = expr(tok, locals);
     expect(tok, ")");
     return node;
   }
-  if (expect_ident(tok))
+
+  if ((*tok)->kind == TK_IDENT)
   {
-    Node *node = calloc(1, sizeof(Node));
-    node->eof = false;
-    node->lvar_name = (*tok)->str;
-    LVar *lvar = find_lvar(tok, locals);
-    if (lvar)
+
+    // Function call
+    if (equal(&((*tok)->next), "("))
+      return funcall(tok, locals);
+
+    // Variable
+    LVar *var = find_var(tok, locals);
+
+    if (!var)
     {
-      node->offset = lvar->offset;
+      var = calloc(1, sizeof(LVar));
+      var->next = *locals;
+      var->name = (*tok)->str;
+      var->len = (*tok)->len;
+      var->offset = (*locals)->offset + 8;
+      *locals = var;
     }
-    else
-    {
-      lvar = calloc(1, sizeof(LVar));
-      lvar->next = *locals;
-      lvar->name = (*tok)->str;
-      lvar->len = (*tok)->len;
-      lvar->offset = (*locals)->offset + 8;
-      node->offset = lvar->offset;
-      *locals = lvar;
-    }
+
     (*tok) = (*tok)->next;
-    if (consume(tok, "("))
-    {
-      node->kind = ND_FUNC;
-      int count_para = 0;
-      node->parameter = calloc(6, sizeof(int));
-      if ((*tok)->kind == TK_NUM)
-      {
-        node->parameter[count_para++] = expect_number(tok);
-        for (;;)
-        {
-          if (consume(tok, ","))
-            node->parameter[count_para++] = expect_number(tok);
-          else
-            break;
-        }
-      }
-      node->parameter_num = count_para;
-      expect(tok, ")");
-    }
-    else
-    {
-      node->kind = ND_LVAR;
-    }
-    return node;
+    return new_var_node(var);
   }
 
   if ((*tok)->kind == TK_NUM)
   {
-    return new_num(expect_number(tok));
+    Node *node = new_num(expect_number(tok));
+    return node;
   }
 
   return new_node(ND_NONE);
 }
 
-int parse(TopLevelNode *tlnodes, Token **tok)
+static Node *funcall(Token **tok, LVar **locals)
 {
-  return program(tlnodes, tok);
+  Token *start = *tok;
+  (*tok) = (*tok)->next->next;
+
+  Node head = {};
+  Node *cur = &head;
+
+  while (!equal(tok, ")"))
+  {
+    if (cur != &head)
+      consume(tok, ",");
+    cur = cur->next = assign(tok, locals);
+  }
+
+  expect(tok, ")");
+
+  Node *node = new_node(ND_FUNCALL);
+  node->funcname = mystrndup(start->str, start->len);
+  node->args = head.next;
+  return node;
+}
+
+Function *parse(Token **tok)
+{
+  return program(tok);
 }

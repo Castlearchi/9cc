@@ -6,7 +6,6 @@ static char *user_input;
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
 bool consume(Token **tok, char *op);
-bool consume_return(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
 bool is_al(char character);
@@ -16,7 +15,8 @@ static Token *new_token(TokenKind kind, Token *cur, char *str, int len);
 static bool startswith(char *p, char *q);
 
 // Reports an error and exit.
-void error(char *fmt, ...) {
+void error(char *fmt, ...)
+{
   va_list ap;
   va_start(ap, fmt);
   vfprintf(stderr, fmt, ap);
@@ -25,7 +25,8 @@ void error(char *fmt, ...) {
 }
 
 // Reports an error location and exit.
-void error_at(char *loc, char *fmt, ...) {
+void error_at(char *loc, char *fmt, ...)
+{
   va_list ap;
   va_start(ap, fmt);
 
@@ -39,69 +40,43 @@ void error_at(char *loc, char *fmt, ...) {
 }
 
 // Consumes the current token if it matches `op`.
-bool consume(Token **tok, char *op) {
-  if ((*tok)->kind != TK_RESERVED ||
-      (*tok)->len != strlen(op) ||
-      memcmp((*tok)->str, op, (*tok)->len))
-      return false;
-  (*tok) = (*tok)->next;
-  return true;
+bool consume(Token **tok, char *op)
+{
+  if (equal(tok, op))
+  {
+    (*tok) = (*tok)->next;
+    return true;
+  }
+  return false;
 }
 
-bool consume_return(Token **tok) {
-  if((*tok)->kind != TK_RETURN) 
-    return false;
-  (*tok) = (*tok)->next;
-  return true;
+// Consumes the current token if it matches `op`.
+bool equal(Token **tok, char *op)
+{
+  return memcmp((*tok)->str, op, (*tok)->len) == 0 && op[(*tok)->len] == '\0';
 }
 
-bool consume_if(Token **tok) {
-  if((*tok)->kind != TK_IF) 
-    return false;
-  (*tok) = (*tok)->next;
-  return true;
-}
-
-bool consume_else (Token **tok) {
-  if((*tok)->kind != TK_ELSE) 
-    return false;
-  (*tok) = (*tok)->next;
-  return true;
-}
-
-bool consume_while(Token **tok) {
-  if((*tok)->kind != TK_WHILE) 
-    return false;
-  (*tok) = (*tok)->next;
-  return true;
-}
-
-bool consume_for(Token **tok) {
-  if((*tok)->kind != TK_FOR) 
-    return false;
-  (*tok) = (*tok)->next;
-  return true;
-}
-
-bool expect_ident(Token **tok) {
-  if((*tok)->kind != TK_IDENT)
+bool expect_ident(Token **tok)
+{
+  if ((*tok)->kind != TK_IDENT)
     return false;
   else
     return true;
 }
 
 // Ensure that the current token is `op`.
-void expect(Token **tok, char *op) {
+void expect(Token **tok, char *op)
+{
   if ((*tok)->kind != TK_RESERVED ||
       (*tok)->len != strlen(op) ||
       memcmp((*tok)->str, op, (*tok)->len))
     error_at((*tok)->str, "expected '%s' but got '%s'", op, (*tok)->str);
-  
   (*tok) = (*tok)->next;
 }
 
 // Ensure that the current token is TK_NUM.
-int expect_number(Token **tok) {
+int expect_number(Token **tok)
+{
   if ((*tok)->kind != TK_NUM)
     error_at((*tok)->str, "expected a number");
   int val = (*tok)->val;
@@ -109,25 +84,29 @@ int expect_number(Token **tok) {
   return val;
 }
 
-bool is_al(char character) {
+bool is_al(char character)
+{
   return ('a' <= character && character <= 'z') ||
          ('A' <= character && character <= 'Z') ||
          (character == '_');
 }
 
-bool is_alnum(char character) {
+bool is_alnum(char character)
+{
   return ('a' <= character && character <= 'z') ||
          ('A' <= character && character <= 'Z') ||
          ('0' <= character && character <= '9') ||
          (character == '_');
 }
 
-bool at_eof(Token **tok) {
+bool at_eof(Token **tok)
+{
   return (*tok)->kind == TK_EOF;
 }
 
 // Create a new token and add it as the next token of `cur`.
-static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
+static Token *new_token(TokenKind kind, Token *cur, char *str, int len)
+{
   Token *tok = calloc(1, sizeof(Token));
   tok->kind = kind;
   tok->str = str;
@@ -136,38 +115,68 @@ static Token *new_token(TokenKind kind, Token *cur, char *str, int len) {
   return tok;
 }
 
-static bool startswith(char *p, char *q) {
+static bool startswith(char *p, char *q)
+{
   return memcmp(p, q, strlen(q)) == 0;
 }
 
+char *mystrndup(const char *s, size_t n)
+{
+  char *t;
+  size_t len = strlen(s);
+
+  if (len > n)
+  {
+    len = n;
+  }
+
+  if ((t = malloc(sizeof(char) * (len + 1))) == NULL)
+  {
+    fprintf(stderr, "Error: cannot allocate memory %zu bytes\n",
+            sizeof(char) * (len + 1));
+    exit(2);
+  }
+
+  strncpy(t, s, len);
+  t[len] = '\0';
+
+  return t;
+}
+
 // Tokenize `user_input` and returns new tokens.
-Token *tokenize(char *p) {
+Token *tokenize(char *p)
+{
   user_input = p;
   Token head;
   head.next = NULL;
   Token *cur = &head;
 
-  while (*p) {
+  while (*p)
+  {
     // Skip whitespace characters.
-    if (isspace(*p)) {
+    if (isspace(*p))
+    {
       p++;
       continue;
     }
 
     // Punctuator
-    if(startswith(p, "==") || startswith(p, "!=") ||
-       startswith(p, "<=") || startswith(p, ">=") ){
+    if (startswith(p, "==") || startswith(p, "!=") ||
+        startswith(p, "<=") || startswith(p, ">="))
+    {
       cur = new_token(TK_RESERVED, cur, p, 2);
-      p+=2;
-      continue; 
+      p += 2;
+      continue;
     }
-    if (strchr("+-*/()<>;,={}&", *p)) {
+    if (strchr("+-*/()<>;,={}&", *p))
+    {
       cur = new_token(TK_RESERVED, cur, p++, 1);
       continue;
     }
 
     // Integer literal
-    if (isdigit(*p)) {
+    if (isdigit(*p))
+    {
       cur = new_token(TK_NUM, cur, p, 0);
       char *q = p;
       cur->val = strtol(p, &p, 10);
@@ -175,42 +184,49 @@ Token *tokenize(char *p) {
       continue;
     }
 
-    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6])) {
-      cur = new_token(TK_RETURN, cur, "return ", 6);
+    if (strncmp(p, "return", 6) == 0 && !is_alnum(p[6]))
+    {
+      cur = new_token(TK_KEYWORD, cur, "return ", 6);
       p += 6;
       continue;
     }
-    if (strncmp(p, "else", 4) == 0) {
-      cur = new_token(TK_ELSE, cur, "else", 4);
+    if (strncmp(p, "else", 4) == 0)
+    {
+      cur = new_token(TK_KEYWORD, cur, "else", 4);
       p += 4;
       continue;
     }
-    if (strncmp(p, "for", 3) == 0) {
-      cur = new_token(TK_FOR, cur, "for", 3);
+    if (strncmp(p, "for", 3) == 0)
+    {
+      cur = new_token(TK_KEYWORD, cur, "for", 3);
       p += 3;
       continue;
     }
-    if (strncmp(p, "while", 5) == 0) {
-      cur = new_token(TK_WHILE, cur, "while", 5);
+    if (strncmp(p, "while", 5) == 0)
+    {
+      cur = new_token(TK_KEYWORD, cur, "while", 5);
       p += 5;
       continue;
     }
 
-    if (strncmp(p, "if", 2) == 0) {
-      cur = new_token(TK_IF, cur, "if", 2);
+    if (strncmp(p, "if", 2) == 0)
+    {
+      cur = new_token(TK_KEYWORD, cur, "if", 2);
       p += 2;
       continue;
     }
 
-    if (is_al(*p)) {
+    if (is_al(*p))
+    {
       char *var_str = calloc(128, sizeof(char));
       int var_length = 0;
-      while (is_alnum(*p)) {
+      while (is_alnum(*p))
+      {
         var_str[var_length] = *p;
         var_length++;
         p++;
       }
-      var_str[var_length]='\0';
+      var_str[var_length] = '\0';
       cur = new_token(TK_IDENT, cur, var_str, var_length);
       continue;
     }
