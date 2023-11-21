@@ -7,7 +7,8 @@ static Node *new_num(int val);
 static LVar *find_var(Token **tok, LVar **locals);
 /*
   program    = func*
-  func       = ident ( "(" (num ("," num)* )? ")" )? "{" stmt* "}"
+  func       = type ident ( "(" (type num ("," type num)* )? ")" )? "{" stmt* "}"
+  type       = "int"
   stmt       = expr ";"
               | "{" stmt* "}"
               | "return" expr ";"
@@ -22,13 +23,13 @@ static LVar *find_var(Token **tok, LVar **locals);
   mul        = unary ("*" unary | "/" unary)*
   unary      = ("+" | "-" | "*" | "&") unary
               | primary
-  primary    = num
-              | ident ( "(" (num ("," num)* )? ")" )?
-              | "(" expr ")"
+  primary    = "(" expr ")" | type ident | ident funcall? | num
+  funcall    = ident "(" (assign ("," assign)*)? ")"
 */
 
 static Function *program(Token **tok);
 static Function *func(Token **tok);
+static TypeKind type(Token **tok);
 static Node *stmt(Token **tok, LVar **locals);
 static Node *expr(Token **tok, LVar **locals);
 static Node *assign(Token **tok, LVar **locals);
@@ -99,7 +100,7 @@ static Function *program(Token **tok)
   return head.next;
 }
 
-// func = ident ( "(" (ident ("," ident)* )? ")" )? "{" stmt* "}"
+// func = type ident ( "(" (type num ("," type num)* )? ")" )? "{" stmt* "}"
 static Function *func(Token **tok)
 {
   int offset = 0;
@@ -107,11 +108,11 @@ static Function *func(Token **tok)
   LVar *params = (LVar *)calloc(1, sizeof(LVar));
   params->next = NULL;
   params->offset = offset;
+  fn->type = type(tok);
   if (!expect_ident(tok))
     error("Here should be function name.");
   fn->name = (*tok)->str;
   (*tok) = (*tok)->next;
-
   expect(tok, "(");
 
   Token head = {};
@@ -121,16 +122,18 @@ static Function *func(Token **tok)
   {
     if (cur != &head)
       consume(tok, ",");
+    TypeKind ty = type(tok);
     if ((*tok)->kind != TK_IDENT)
-      error_at((*tok)->str, "Here should be function argument name.");
+      error("Here should be function argument name but got %s", (*tok)->str);
     LVar *lvar = find_var(tok, &params);
     if (lvar)
-      error_at((*tok)->str, "引数の名前に被りがあります");
+      error("引数の名前に被りがあります: %s", (*tok)->str);
     lvar = calloc(1, sizeof(LVar));
     lvar->next = params;
     lvar->name = (*tok)->str;
     lvar->len = (*tok)->len;
     lvar->offset = offset = offset + 8;
+    lvar->type = ty;
     params = lvar;
     cur = (*tok) = (*tok)->next;
     regards_num++;
@@ -161,6 +164,15 @@ static Function *func(Token **tok)
   fn->stack_size = stack_size;
 
   return fn;
+}
+
+// type = "int"
+static TypeKind type(Token **tok)
+{
+  if (consume(tok, "int"))
+    return TYPE_INT;
+  else
+    error("Type should be int but got %s", (*tok)->str);
 }
 
 // stmt       = expr ";"
@@ -351,7 +363,7 @@ static Node *unary(Token **tok, LVar **locals)
   return primary(tok, locals);
 }
 
-// primary = "(" expr ")" | ident func-args? | num
+// primary = "(" expr ")"  | ident func-args? | type ident| num
 static Node *primary(Token **tok, LVar **locals)
 {
 
@@ -373,14 +385,31 @@ static Node *primary(Token **tok, LVar **locals)
     LVar *var = find_var(tok, locals);
 
     if (!var)
-    {
-      var = calloc(1, sizeof(LVar));
-      var->next = *locals;
-      var->name = (*tok)->str;
-      var->len = (*tok)->len;
-      var->offset = (*locals)->offset + 8;
-      *locals = var;
-    }
+      error("変数が未定義です: %s", (*tok)->str);
+
+    (*tok) = (*tok)->next;
+    return new_var_node(var);
+  }
+
+  if (equal(tok, "int"))
+  {
+    TypeKind ty = type(tok);
+
+    if ((*tok)->kind != TK_IDENT)
+      error("Here should be variable name.");
+
+    LVar *var = find_var(tok, locals);
+
+    if (var)
+      error("変数が再定義されています");
+
+    var = calloc(1, sizeof(LVar));
+    var->next = *locals;
+    var->name = (*tok)->str;
+    var->len = (*tok)->len;
+    var->offset = (*locals)->offset + 8;
+    var->type = ty;
+    *locals = var;
 
     (*tok) = (*tok)->next;
     return new_var_node(var);

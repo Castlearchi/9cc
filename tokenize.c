@@ -25,11 +25,8 @@ void error(char *fmt, ...)
 }
 
 // Reports an error location and exit.
-void error_at(char *loc, char *fmt, ...)
+static void verror_at(char *loc, char *fmt, va_list ap)
 {
-  va_list ap;
-  va_start(ap, fmt);
-
   int pos = loc - user_input;
   fprintf(stderr, "%s\n", user_input);
   fprintf(stderr, "%*s", pos, ""); // print pos spaces.
@@ -37,6 +34,15 @@ void error_at(char *loc, char *fmt, ...)
   vfprintf(stderr, fmt, ap);
   fprintf(stderr, "\n");
   exit(1);
+}
+
+// Reports an error location and exit.
+void error_at(char *loc, char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+
+  verror_at(loc, fmt, ap);
 }
 
 // Consumes the current token if it matches `op`.
@@ -213,6 +219,13 @@ Token *tokenize(char *p)
     {
       cur = new_token(TK_KEYWORD, cur, "if", 2);
       p += 2;
+      continue;
+    }
+
+    if (strncmp(p, "int", 3) == 0)
+    {
+      cur = new_token(TK_KEYWORD, cur, "int", 3);
+      p += 3;
       continue;
     }
 

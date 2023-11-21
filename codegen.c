@@ -103,7 +103,6 @@ static void gen(Node *node)
     printf(".Lend%d:\n", Lnum++);
     return;
   case ND_RETURN:
-    // printf("node->kind->lhs %d\n", node->lhs->kind);
     gen(node->lhs);
     printf("  jmp .L.return.%s\n", current_fn->name);
     return;

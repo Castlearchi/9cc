@@ -29,14 +29,21 @@ struct Token
   size_t len;     // Token length
 };
 
+// Var type
+typedef enum
+{
+  TYPE_INT // int
+} TypeKind;
+
 // Local Variable
 typedef struct LVar LVar;
 struct LVar
 {
-  LVar *next; // Next var or NULL
-  char *name; // Var name
-  size_t len; // Name length
-  int offset; // Offset from RBP
+  LVar *next;    // Next var or NULL
+  char *name;    // Var name
+  size_t len;    // Name length
+  int offset;    // Offset from RBP
+  TypeKind type; // Type
 };
 
 void error(char *fmt, ...);
@@ -120,6 +127,7 @@ struct Function
   Function *next;
   char *name;
   LVar *params;
+  TypeKind type; // return var type
 
   Node **body;
   int stmt_count;
