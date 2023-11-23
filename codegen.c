@@ -129,7 +129,6 @@ static void gen(Node *node)
   case ND_DEREF:
     gen(node->lhs);
     printf("  mov rax, [rax]\n");
-    // printf("  push rax\n");
     return;
   default:
   }

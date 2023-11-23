@@ -15,6 +15,7 @@ typedef enum
   TK_IDENT,    // Identifier
   TK_NUM,      // Integer literals
   TK_KEYWORD,  // Keywords
+  TK_TYPE,     // Type
   TK_EOF       // End-of-file markers
 } TokenKind;
 
@@ -25,29 +26,38 @@ struct Token
   TokenKind kind; // Token kind
   Token *next;    // Next token
   int val;        // If kind is TK_NUM, its value
+  char *loc;      // Token location
   char *str;      // Token string
   size_t len;     // Token length
 };
 
-// Var type
 typedef enum
 {
-  TYPE_INT // int
-} TypeKind;
+  INT,
+  PTR
+} ty;
+
+typedef struct Type Type;
+struct Type
+{
+  ty ty;
+  struct Type *ptr_to; // Use if ty == PTR
+};
 
 // Local Variable
 typedef struct LVar LVar;
 struct LVar
 {
-  LVar *next;    // Next var or NULL
-  char *name;    // Var name
-  size_t len;    // Name length
-  int offset;    // Offset from RBP
-  TypeKind type; // Type
+  LVar *next; // Next var or NULL
+  char *name; // Var name
+  size_t len; // Name length
+  int offset; // Offset from RBP
+  Type *ty;   // Type
 };
 
 void error(char *fmt, ...);
 void error_at(char *loc, char *fmt, ...);
+void error_tok(Token **tok, char *fmt, ...);
 bool consume(Token **tok, char *op);
 bool equal(Token **tok, char *op);
 bool expect_ident(Token **tok);
@@ -127,7 +137,7 @@ struct Function
   Function *next;
   char *name;
   LVar *params;
-  TypeKind type; // return var type
+  Type *ty; // return var type
 
   Node **body;
   int stmt_count;

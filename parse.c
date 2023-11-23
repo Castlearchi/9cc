@@ -7,8 +7,11 @@ static Node *new_num(int val);
 static LVar *find_var(Token **tok, LVar **locals);
 /*
   program    = func*
-  func       = type ident ( "(" (type num ("," type num)* )? ")" )? "{" stmt* "}"
-  type       = "int"
+  func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
+  declarator = declspec ident
+  func_params= (param ("," param)*)?
+  param      = declspec ident
+  declspec   = "int" ("*")*
   stmt       = expr ";"
               | "{" stmt* "}"
               | "return" expr ";"
@@ -23,13 +26,17 @@ static LVar *find_var(Token **tok, LVar **locals);
   mul        = unary ("*" unary | "/" unary)*
   unary      = ("+" | "-" | "*" | "&") unary
               | primary
-  primary    = "(" expr ")" | type ident | ident funcall? | num
+  primary    = "(" expr ")" | var_init | ident funcall? | num
+  var_init   = declspec ident ("=" expr)?
   funcall    = ident "(" (assign ("," assign)*)? ")"
 */
 
 static Function *program(Token **tok);
 static Function *func(Token **tok);
-static TypeKind type(Token **tok);
+static Function *declarator(Token **tok);
+static void func_params(Token **tok, Function *fn);
+static LVar *param(Token **tok, LVar *params);
+static Type *declspec(Token **tok);
 static Node *stmt(Token **tok, LVar **locals);
 static Node *expr(Token **tok, LVar **locals);
 static Node *assign(Token **tok, LVar **locals);
@@ -40,6 +47,7 @@ static Node *mul(Token **tok, LVar **locals);
 static Node *unary(Token **tok, LVar **locals);
 static Node *primary(Token **tok, LVar **locals);
 static Node *funcall(Token **tok, LVar **locals);
+static Node *var_init(Token **tok, LVar **locals);
 
 static Node *new_node(NodeKind kind)
 {
@@ -100,52 +108,24 @@ static Function *program(Token **tok)
   return head.next;
 }
 
-// func = type ident ( "(" (type num ("," type num)* )? ")" )? "{" stmt* "}"
+// func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
 static Function *func(Token **tok)
 {
-  int offset = 0;
-  Function *fn = (Function *)calloc(1, sizeof(Function));
-  LVar *params = (LVar *)calloc(1, sizeof(LVar));
-  params->next = NULL;
-  params->offset = offset;
-  fn->type = type(tok);
-  if (!expect_ident(tok))
-    error("Here should be function name.");
-  fn->name = (*tok)->str;
-  (*tok) = (*tok)->next;
+  Function *fn = declarator(tok);
+
   expect(tok, "(");
 
-  Token head = {};
-  Token *cur = &head;
-  int regards_num = 0;
-  while (!equal(tok, ")"))
-  {
-    if (cur != &head)
-      consume(tok, ",");
-    TypeKind ty = type(tok);
-    if ((*tok)->kind != TK_IDENT)
-      error("Here should be function argument name but got %s", (*tok)->str);
-    LVar *lvar = find_var(tok, &params);
-    if (lvar)
-      error("引数の名前に被りがあります: %s", (*tok)->str);
-    lvar = calloc(1, sizeof(LVar));
-    lvar->next = params;
-    lvar->name = (*tok)->str;
-    lvar->len = (*tok)->len;
-    lvar->offset = offset = offset + 8;
-    lvar->type = ty;
-    params = lvar;
-    cur = (*tok) = (*tok)->next;
-    regards_num++;
-  }
-  fn->params = params;
-  fn->regards_num = regards_num;
+  func_params(tok, fn);
+
   expect(tok, ")");
+
   expect(tok, "{");
+
   LVar **locals = (LVar **)calloc(1, sizeof(LVar *));
   *locals = (LVar *)calloc(1, sizeof(LVar));
-  (*locals)->offset = offset;
-  (*locals)->next = params;
+  (*locals)->offset = fn->params->offset;
+  (*locals)->next = fn->params;
+  // *locals = fn->params;
   fn->body = calloc(1, sizeof(Node *));
   fn->stmt_count = 0;
   while (!consume(tok, "}"))
@@ -166,13 +146,83 @@ static Function *func(Token **tok)
   return fn;
 }
 
-// type = "int"
-static TypeKind type(Token **tok)
+// declarator = declspec ident
+static Function *declarator(Token **tok)
 {
+  Function *fn = (Function *)calloc(1, sizeof(Function));
+  Type *type = declspec(tok);
+  if (!expect_ident(tok))
+    error_tok(tok, "Here should be function name. %d\n", (*tok)->kind);
+  fn->ty = type;
+  fn->name = (*tok)->str;
+  *tok = (*tok)->next;
+  return fn;
+}
+// func_params= (param ("," param)*)?
+static void func_params(Token **tok, Function *fn)
+{
+  LVar *params = (LVar *)calloc(1, sizeof(LVar));
+  int offset = 0;
+
+  params->next = NULL;
+  params->offset = offset;
+
+  Token head = {};
+  Token *cur = &head;
+
+  int regards_num = 0;
+  while (!equal(tok, ")"))
+  {
+    if (cur != &head)
+      consume(tok, ",");
+    params = param(tok, params);
+    cur = *tok;
+    regards_num++;
+  }
+
+  fn->params = params;
+  fn->regards_num = regards_num;
+}
+
+// param      = declspec ident
+static LVar *param(Token **tok, LVar *params)
+{
+  Type *type = declspec(tok);
+  if ((*tok)->kind != TK_IDENT)
+    error_tok(tok, "Here should be function argument name.\n");
+  LVar *lvar = find_var(tok, &params);
+  if (lvar)
+    error_tok(tok, "Redeclaration of argument.\n");
+  lvar = calloc(1, sizeof(LVar));
+  lvar->next = params;
+  lvar->name = (*tok)->str;
+  lvar->len = (*tok)->len;
+  lvar->offset = params->offset + 8;
+  lvar->ty = type;
+  params = lvar;
+  *tok = (*tok)->next;
+  return params;
+}
+
+// declspec = "int" ("*")*
+static Type *declspec(Token **tok)
+{
+  Type *cur = calloc(1, sizeof(Type));
+  if ((*tok)->kind != TK_TYPE)
+    error_tok(tok, "Here should be type.\n");
   if (consume(tok, "int"))
-    return TYPE_INT;
-  else
-    error("Type should be int but got %s", (*tok)->str);
+  {
+    if (equal(tok, "*"))
+    {
+      while (consume(tok, "*"))
+      {
+        cur->ty = PTR;
+        cur = cur->ptr_to = calloc(1, sizeof(Type));
+      }
+    }
+    cur->ty = INT;
+  }
+  return cur;
 }
 
 // stmt       = expr ";"
@@ -363,7 +413,7 @@ static Node *unary(Token **tok, LVar **locals)
   return primary(tok, locals);
 }
 
-// primary = "(" expr ")"  | ident func-args? | type ident| num
+// primary    = "(" expr ")" | declspec ident | ident funcall? | num
 static Node *primary(Token **tok, LVar **locals)
 {
 
@@ -378,41 +428,22 @@ static Node *primary(Token **tok, LVar **locals)
   {
 
     // Function call
-    if (equal(&((*tok)->next), "("))
+    if (equal(&(*tok)->next, "("))
       return funcall(tok, locals);
 
     // Variable
     LVar *var = find_var(tok, locals);
 
     if (!var)
-      error("変数が未定義です: %s", (*tok)->str);
+      error_tok(tok, "変数が未定義です\n");
 
-    (*tok) = (*tok)->next;
+    *tok = (*tok)->next;
     return new_var_node(var);
   }
 
-  if (equal(tok, "int"))
+  if ((*tok)->kind == TK_TYPE)
   {
-    TypeKind ty = type(tok);
-
-    if ((*tok)->kind != TK_IDENT)
-      error("Here should be variable name.");
-
-    LVar *var = find_var(tok, locals);
-
-    if (var)
-      error("変数が再定義されています");
-
-    var = calloc(1, sizeof(LVar));
-    var->next = *locals;
-    var->name = (*tok)->str;
-    var->len = (*tok)->len;
-    var->offset = (*locals)->offset + 8;
-    var->type = ty;
-    *locals = var;
-
-    (*tok) = (*tok)->next;
-    return new_var_node(var);
+    return var_init(tok, locals);
   }
 
   if ((*tok)->kind == TK_NUM)
@@ -424,10 +455,38 @@ static Node *primary(Token **tok, LVar **locals)
   return new_node(ND_NONE);
 }
 
+// var_init   = declspec ident
+static Node *var_init(Token **tok, LVar **locals)
+{
+  Type *type = declspec(tok);
+  if (!type)
+    return NULL;
+
+  if ((*tok)->kind != TK_IDENT)
+    error_tok(tok, "Here should be variable name.\n");
+
+  LVar *var = find_var(tok, locals);
+
+  if (var)
+    error_tok(tok, "変数が再定義されています\n");
+
+  var = calloc(1, sizeof(LVar));
+  var->next = *locals;
+  var->name = (*tok)->str;
+  var->len = (*tok)->len;
+  var->offset = (*locals)->offset + 8;
+  var->ty = type;
+  *locals = var;
+  *tok = (*tok)->next;
+
+  return new_var_node(var);
+}
+
+// funcall    = ident "(" (assign ("," assign)*)? ")"
 static Node *funcall(Token **tok, LVar **locals)
 {
   Token *start = *tok;
-  (*tok) = (*tok)->next->next;
+  *tok = (*tok)->next->next;
 
   Node head = {};
   Node *cur = &head;
