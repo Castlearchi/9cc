@@ -5,6 +5,7 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_unary(NodeKind kind, Node *lhs);
 static Node *new_num(int val);
 static LVar *find_var(Token **tok, LVar **locals);
+static int type2byte(Type *tkey);
 /*
   program    = func*
   func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
@@ -62,6 +63,7 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs)
   Node *node = new_node(kind);
   node->lhs = lhs;
   node->rhs = rhs;
+  node->ty = lhs->ty;
   return node;
 }
 
@@ -69,6 +71,7 @@ static Node *new_unary(NodeKind kind, Node *lhs)
 {
   Node *node = new_node(kind);
   node->lhs = lhs;
+  node->ty = lhs->ty;
   return node;
 }
 
@@ -83,6 +86,7 @@ static Node *new_var_node(LVar *var)
 {
   Node *node = new_node(ND_VAR);
   node->var = var;
+  node->ty = var->ty;
   return node;
 }
 
@@ -93,6 +97,22 @@ LVar *find_var(Token **tok, LVar **locals)
     if (var->len == (*tok)->len && !memcmp((*tok)->str, var->name, var->len))
       return var;
   return NULL;
+}
+
+static int type2byte(Type *ty)
+{
+  switch (ty->tkey)
+  {
+  case INT:
+    return 4;
+
+  case PTR:
+    return 8;
+
+  default:
+    error("定義されていない変数型です\n");
+  }
+  return 0;
 }
 
 // program = func*
@@ -123,9 +143,8 @@ static Function *func(Token **tok)
 
   LVar **locals = (LVar **)calloc(1, sizeof(LVar *));
   *locals = (LVar *)calloc(1, sizeof(LVar));
-  (*locals)->offset = fn->params->offset;
-  (*locals)->next = fn->params;
-  // *locals = fn->params;
+  *locals = fn->params;
+
   fn->body = calloc(1, sizeof(Node *));
   fn->stmt_count = 0;
   while (!consume(tok, "}"))
@@ -138,7 +157,9 @@ static Function *func(Token **tok)
   int stack_size = 0;
   for (LVar *var = *locals; var->next; var = var->next)
   {
-    stack_size += 8;
+    int size = type2byte(var->ty);
+    stack_size += size;
+    var->ty->size = size;
   }
   fn->locals = locals;
   fn->stack_size = stack_size;
@@ -197,7 +218,7 @@ static LVar *param(Token **tok, LVar *params)
   lvar->next = params;
   lvar->name = (*tok)->str;
   lvar->len = (*tok)->len;
-  lvar->offset = params->offset + 8;
+  lvar->offset = params->offset + type2byte(type);
   lvar->ty = type;
   params = lvar;
   *tok = (*tok)->next;
@@ -210,17 +231,18 @@ static Type *declspec(Token **tok)
   Type *cur = calloc(1, sizeof(Type));
   if ((*tok)->kind != TK_TYPE)
     error_tok(tok, "Here should be type.\n");
+
   if (consume(tok, "int"))
   {
+    cur->tkey = INT;
     if (equal(tok, "*"))
     {
       while (consume(tok, "*"))
       {
-        cur->ty = PTR;
         cur = cur->ptr_to = calloc(1, sizeof(Type));
+        cur->tkey = PTR;
       }
     }
-    cur->ty = INT;
   }
   return cur;
 }
@@ -371,9 +393,17 @@ static Node *add(Token **tok, LVar **locals)
   for (;;)
   {
     if (consume(tok, "+"))
+    {
       node = new_binary(ND_ADD, node, mul(tok, locals));
+      node->ty = node->lhs->ty;
+    }
+
     else if (consume(tok, "-"))
+    {
       node = new_binary(ND_SUB, node, mul(tok, locals));
+      node->ty = node->lhs->ty;
+    }
+
     else
       return node;
   }
@@ -402,7 +432,7 @@ static Node *unary(Token **tok, LVar **locals)
     return unary(tok, locals);
 
   if (consume(tok, "-"))
-    return new_unary(ND_SUB, unary(tok, locals));
+    return new_unary(ND_NEG, unary(tok, locals));
 
   if (consume(tok, "*"))
     return new_unary(ND_DEREF, unary(tok, locals));
@@ -424,6 +454,11 @@ static Node *primary(Token **tok, LVar **locals)
     return node;
   }
 
+  if ((*tok)->kind == TK_TYPE)
+  {
+    return var_init(tok, locals);
+  }
+
   if ((*tok)->kind == TK_IDENT)
   {
 
@@ -439,11 +474,6 @@ static Node *primary(Token **tok, LVar **locals)
 
     *tok = (*tok)->next;
     return new_var_node(var);
-  }
-
-  if ((*tok)->kind == TK_TYPE)
-  {
-    return var_init(tok, locals);
   }
 
   if ((*tok)->kind == TK_NUM)
@@ -474,7 +504,7 @@ static Node *var_init(Token **tok, LVar **locals)
   var->next = *locals;
   var->name = (*tok)->str;
   var->len = (*tok)->len;
-  var->offset = (*locals)->offset + 8;
+  var->offset = (*locals)->offset + type2byte(type);
   var->ty = type;
   *locals = var;
   *tok = (*tok)->next;

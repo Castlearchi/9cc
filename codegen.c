@@ -5,8 +5,47 @@ static void gen_addr(Node *node);
 static void gen_funcall(Node *node);
 static void gen_definefunc();
 
-static char *regargs[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *regards64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+static char *regards32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 static Function *current_fn;
+
+static void pop(char *reg)
+{
+  printf("  pop %s\n", reg);
+}
+
+static void load(Type *ty)
+{
+  if (!ty)
+    return;
+  switch (ty->size)
+  {
+  case 4:
+    printf("  mov eax, [rax]\n");
+    break;
+  case 8:
+    printf("  mov rax, [rax]\n");
+    break;
+  default:
+    error("load: Unexpected size %d", ty->size);
+  }
+}
+
+static void store(Type *ty)
+{
+  printf("  pop rdi\n");
+  switch (ty->size)
+  {
+  case 4:
+    printf("  mov [rdi], eax\n");
+    break;
+  case 8:
+    printf("  mov [rdi], rax\n");
+    break;
+  default:
+    error("store: Unexpected size %d", ty->size);
+  }
+}
 
 static void gen_addr(Node *node)
 {
@@ -15,7 +54,6 @@ static void gen_addr(Node *node)
   case ND_VAR:
     printf("  mov rax, rbp\n");
     printf("  sub rax, %d\n", node->var->offset);
-    // printf("  push rax\n");
     return;
   case ND_DEREF:
     gen(node->lhs);
@@ -36,7 +74,9 @@ static void gen_funcall(Node *node)
   }
 
   for (int i = nargs - 1; i >= 0; i--)
-    printf("  pop %s\n", regargs[i]);
+  {
+    pop(regards64[i]);
+  }
 
   printf("  mov rax, 0\n");
   printf("  call %s\n", node->funcname);
@@ -46,7 +86,6 @@ static void gen_funcall(Node *node)
 static void gen(Node *node)
 {
   static unsigned int Lnum = 0; // Lnum is serial number for control statement.
-  // printf("debug %d\n", node->kind);
   switch (node->kind)
   {
   case ND_NONE:
@@ -107,11 +146,15 @@ static void gen(Node *node)
     printf("  jmp .L.return.%s\n", current_fn->name);
     return;
   case ND_NUM:
-    printf("  mov rax, %d\n", node->val);
+    printf("  mov eax, %d\n", node->val);
+    return;
+  case ND_NEG:
+    gen_addr(node->lhs);
+    printf("  neg rax\n");
     return;
   case ND_VAR:
     gen_addr(node);
-    printf("  mov rax, [rax]\n");
+    load(node->ty);
     return;
   case ND_FUNCALL:
     gen_funcall(node);
@@ -120,15 +163,14 @@ static void gen(Node *node)
     gen_addr(node->lhs);
     printf("  push rax\n");
     gen(node->rhs);
-    printf("  pop rdi\n");
-    printf("  mov [rdi], rax\n");
+    store(node->ty);
     return;
-  case ND_ADDR:
+  case ND_ADDR: // &address
     gen_addr(node->lhs);
     return;
-  case ND_DEREF:
+  case ND_DEREF: // *pointer
     gen(node->lhs);
-    printf("  mov rax, [rax]\n");
+    load(node->ty);
     return;
   default:
   }
@@ -137,77 +179,102 @@ static void gen(Node *node)
   printf("  push rax\n");
   gen(node->rhs);
   printf("  push rax\n");
-  printf("  pop rdi\n");
-  printf("  pop rax\n");
+  pop("rdi");
+  pop("rax");
+
+  char *lreg, *rreg;
+  if (node->lhs->ty->tkey == PTR)
+  {
+    lreg = "rax";
+    rreg = "rdi";
+  }
+  else
+  {
+    lreg = "eax";
+    rreg = "edi";
+  }
 
   switch (node->kind)
   {
   case ND_ADD:
-    printf("  add rax, rdi\n");
+    printf("  add %s, %s\n", lreg, rreg);
     break;
   case ND_SUB:
-    printf("  sub rax, rdi\n");
+    printf("  sub %s, %s\n", lreg, rreg);
     break;
   case ND_MUL:
-    printf("  imul rax, rdi\n");
+    printf("  imul %s, %s\n", lreg, rreg);
     break;
   case ND_DIV:
     printf("  cqo\n");
-    printf("  idiv rdi\n");
+    printf("  idiv %s\n", rreg);
     break;
   case ND_EQ:
-    printf("  cmp rax, rdi\n");
+    printf("  cmp %s, %s\n", lreg, rreg);
     printf("  sete al\n");
-    printf("  movzb rax, al\n");
+    printf("  movzb %s, al\n", rreg);
     break;
   case ND_NE:
-    printf("  cmp rax, rdi\n");
+    printf("  cmp %s, %s\n", lreg, rreg);
     printf("  setne al\n");
-    printf("  movzb rax, al\n");
+    printf("  movzb %s, al\n", rreg);
     break;
   case ND_LT:
-    printf("  cmp rax, rdi\n");
+    printf("  cmp %s, %s\n", lreg, rreg);
     printf("  setl al\n");
-    printf("  movzb rax, al\n");
+    printf("  movzb %s, al\n", rreg);
     break;
   case ND_LE:
-    printf("  cmp rax, rdi\n");
+    printf("  cmp %s, %s\n", lreg, rreg);
     printf("  setle al\n");
-    printf("  movzb rax, al\n");
+    printf("  movzb %s, al\n", lreg);
     break;
   default:
   }
 }
 
+static void store_gp(int i, int offset, int size)
+{
+  printf("  mov rax, rbp\n");
+  printf("  sub rax, %d\n", offset);
+
+  switch (size)
+  {
+  case 4:
+    printf("  mov [rax], %s\n", regards32[i]);
+    return;
+  case 8:
+    printf("  mov [rax], %s\n", regards64[i]);
+    return;
+  default:
+    error("store_gp: Unexpected size %d", size);
+  }
+}
+
 static void gen_definefunc()
 {
-  // Allocate memory for 26 variables.
+  // Allocate memory.
   printf("  push rbp\n");
   printf("  mov rbp, rsp\n");
   printf("  sub rsp, %d\n", current_fn->stack_size);
 
-  // Stack regargs into rbp
+  // Save passed-by-register arguments to the stack
+  int i = current_fn->regards_num - 1;
   for (LVar *param = current_fn->params; param->next; param = param->next)
   {
-    printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", param->offset);
-    printf("  push rax\n");
-  }
-  for (int i = 0; i < current_fn->regards_num; i++)
-  {
-    printf("  pop rax\n");
-    printf("  mov [rax], %s\n", regargs[i]);
+    store_gp(i--, param->offset, param->ty->size);
   }
 
   // Traverse the AST to emit assembly.
   int code_num = current_fn->stmt_count;
   for (int i = 0; i < code_num; i++)
   {
+    add_type(current_fn->body[i]);
+
     gen(current_fn->body[i]);
     // Since there should be one value left in the stack
     // as a result of evaluating the expression,
     // make sure to pop it to avoid overflowing the stack.
-    // printf("  pop rax\n");
   }
 
   // The result of the last expression is stored in RAX,

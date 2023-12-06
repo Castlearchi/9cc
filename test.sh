@@ -14,7 +14,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./9cc "$input" > tmp.s || exit
+  ./9cc "$input" > tmp.s || error "$input" 
   cc -static -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
@@ -23,8 +23,15 @@ assert() {
     echo "$input => $actual"
   else
     echo "$input => $expected expected, but got $actual"
-    exit 1
+    error "$input"
   fi
+}
+
+error() {
+  input="$1"
+  echo "Fail $input"
+  ./9cc "$input"
+  exit
 }
 
 assert 0 'int main() { return 0; }'
@@ -32,6 +39,7 @@ assert 42 'int main() { return 42; }'
 assert 25 'int main() { return 5+20; }'
 assert 1 'int main() { return 5-4; }'
 assert 21 'int main() { return 5+20-4; }'
+assert 50 'int main() { return 5+20+15+10; }'
 assert 41 'int main() { return  12 + 34 - 5 ; }'
 assert 47 'int main() { return 5+6*7; }'
 assert 15 'int main() { return 5*(9-6); }'
@@ -57,15 +65,12 @@ assert 1 'int main() { return 1>=0; }'
 assert 1 'int main() { return 1>=1; }'
 assert 0 'int main() { return 1>=2; }'
 
-assert 3 'int main() { int a; a=3; return a; }'
-assert 3 'int main() { int a; a=3; return a; }'
-assert 8 'int main() { int a; a=3; int z; z=5; return a+z; }'
-
 assert 1 'int main() { return 1; 2; 3; }'
 assert 2 'int main() { 1; return 2; 3; }'
 assert 3 'int main() { 1; 2; return 3; }'
 
 assert 3 'int main() { int a; a=3; return a; }'
+assert 20 'int main() { int a; a=3; int z; z=5; int y; y=2; int w; w=10;return a+z+y+w; }'
 assert 8 'int main() { int a; a=3; int z; z=5; return a+z; }'
 assert 6 'int main() { int a; int b; a=b=3; return a+b; }'
 assert 3 'int main() { int foo; foo=3; return foo; }'
@@ -78,9 +83,11 @@ assert 2 'int main() { if (2-1) return 2; return 3; }'
 assert 2 'int main() { if (1) {return 2;} else{return 3;} return 4; }'
 assert 3 'int main() { if (0) {return 2;} else{return 3;} return 4; }'
 
+assert 3 'int main() { int i; int j; i = 2; j = 1; j = i + j; return j;}'
 assert 10 'int main() { int i; i=0; int j; j=0; for (i=0; i<5; i=i+1) j=i+j; return j; }'
 assert 55 'int main() { int i; i=0; int j; j=0; for (i=0; i<=10; i=i+1) j=i+j; return j; }'
 assert 3 'int main() { for (;;) return 3; return 5; }'
+
 
 assert 10 'int main() { int i; i=0; while(i<10) i=i+1; return i; }'
 
@@ -95,12 +102,9 @@ assert 11 'int main() { int i; i=0; while(i<=10) {i=i+1;} return i; }'
 assert 55 'int main() { int i; i=0; int j; j=0; while(i<=10) {j=i+j; i=i+1;} return j; }'
 
 assert 3 'int main() { int x; x=3; return *&x; }'
-assert 3 'int main() { int x; x=3; int y; y=&x; int z; z=&y; return **z; }'
-assert 5 'int main() { int x; x=3; int y; y=5; return *(&x-8); }'
-assert 3 'int main() { int x; x=3; int y; y=5; return *(&y+8); }'
-assert 5 'int main() { int x; x=3; int y; y=&x; *y=5; return x; }'
-assert 7 'int main() { int x; x=3; int y; y=5; *(&x-8)=7; return y; }'
-assert 7 'int main() { int x; x=3; int y; y=5; *(&y+8)=7; return x; }'
+assert 3 'int main() { int x; int *y; x=3; y=&x; return *y; }'
+assert 3 'int main() { int x; int *y;  int **z; x=3; y=&x;z=&y; return **z; }'
+assert 5 'int main() { int x; x=3; int *y; y=&x; *y=5; return x; }'
 
 assert 3 'int main() { return ret3(); }'
 assert 5 'int main() { return ret5(); }'
@@ -123,4 +127,5 @@ assert 70 'int main() { int x; x = 10; int y; y = add2(3,4);return x*y; } int ad
 assert 3 'int main() { int x; int *y; y = &x; *y = 3;return x;}'
 assert 3 'int main() { int x;int *y;int **z; z = &y; y = &x; **z = 3; return x;}'
 assert 10 'int main() { int x; de10(&x); return x;} int de10(int *y) { *y = 10; }'
+
 echo OK

@@ -35,13 +35,14 @@ typedef enum
 {
   INT,
   PTR
-} ty;
+} TypeKeyword;
 
 typedef struct Type Type;
 struct Type
 {
-  ty ty;
-  struct Type *ptr_to; // Use if ty == PTR
+  TypeKeyword tkey;
+  int size;
+  struct Type *ptr_to; // Use if tkey == PTR
 };
 
 // Local Variable
@@ -77,6 +78,7 @@ typedef enum
   ND_SUB,     // -
   ND_MUL,     // *
   ND_DIV,     // /
+  ND_NEG,     // unary -
   ND_EQ,      // ==
   ND_NE,      // !=
   ND_LT,      // <
@@ -103,6 +105,7 @@ struct Node
 {
   NodeKind kind; // Node kind
   Node *next;    // Next node
+  Type *ty;      // Type, e.g. int or pointer to int.
 
   Node *lhs; // Left-hand side
   Node *rhs; // Right-hand side
@@ -127,7 +130,7 @@ struct Node
   Node *args;        // Fucntion parameter value
   int parameter_num; // Number of Fucntion parameters
 
-  LVar *var; // Used if kind == ND_VAR
+  LVar *var; // Use if kind == ND_VAR
 };
 
 // Function
@@ -152,3 +155,8 @@ Function *parse(Token **tok);
 // codegen.c
 //
 void codegen(Function *prog);
+
+//
+// type.c
+//
+void add_type(Node *node);
