@@ -96,6 +96,9 @@ static void gen(Node *node)
       gen(node->block[i]);
     }
     return;
+  case ND_SIZEOF:
+    printf("  mov rax, %d\n", node->ty->size);
+    return;
   case ND_IF:
     gen(node->cond);
     printf("  cmp rax, 0\n");

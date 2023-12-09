@@ -16,6 +16,7 @@ typedef enum
   TK_NUM,      // Integer literals
   TK_KEYWORD,  // Keywords
   TK_TYPE,     // Type
+  TY_SIZEOF,   // sizeof
   TK_EOF       // End-of-file markers
 } TokenKind;
 
@@ -92,6 +93,7 @@ typedef enum
   ND_ELSE,    // else
   ND_WHILE,   // while
   ND_FOR,     // for
+  ND_SIZEOF,  // sizeof
   ND_BLOCK,   // { ... }
   ND_FUNCALL, // function call
   ND_ADDR,    // &address

@@ -25,7 +25,8 @@ static int type2byte(Type *tkey);
   relational = add ("<" add | "<=" add | ">" add | ">=" add)*
   add        = mul ("+" mul | "-" mul)*
   mul        = unary ("*" unary | "/" unary)*
-  unary      = ("+" | "-" | "*" | "&") unary
+  unary      = "sizeof" unary
+              | ("+" | "-" | "*" | "&") unary
               | primary
   primary    = "(" expr ")" | var_init | ident funcall? | num
   var_init   = declspec ident ("=" expr)?
@@ -427,10 +428,14 @@ static Node *mul(Token **tok, LVar **locals)
   }
 }
 
-// unary      = ("+" | "-" | "*" | "&") unary
+// unary      = "sizeof" unary
+//             | ("+" | "-" | "*" | "&") unary
 //             | primary
 static Node *unary(Token **tok, LVar **locals)
 {
+  if (consume(tok, "sizeof"))
+    return new_unary(ND_SIZEOF, unary(tok, locals));
+
   if (consume(tok, "+"))
     return unary(tok, locals);
 

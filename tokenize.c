@@ -240,6 +240,13 @@ Token *tokenize(char *p)
       continue;
     }
 
+    if (strncmp(p, "sizeof", 6) == 0)
+    {
+      cur = new_token(TY_SIZEOF, cur, p, "sizeof", 6);
+      p += 6;
+      continue;
+    }
+
     if (is_al(*p))
     {
       char *q = p;

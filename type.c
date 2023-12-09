@@ -38,6 +38,7 @@ void add_type(Node *node)
     case ND_NEG:
     case ND_ASSIGN:
     case ND_RETURN:
+    case ND_SIZEOF:
         node->ty = node->lhs->ty;
         return;
     case ND_VAR:
