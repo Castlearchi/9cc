@@ -187,6 +187,7 @@ static void gen(Node *node)
   {
     lreg = "rax";
     rreg = "rdi";
+    printf("  imul rdi, %d\n", node->lhs->ty->ptr_to->size);
   }
   else
   {
@@ -270,7 +271,9 @@ static void gen_definefunc()
   for (int i = 0; i < code_num; i++)
   {
     add_type(current_fn->body[i]);
-
+  }
+  for (int i = 0; i < code_num; i++)
+  {
     gen(current_fn->body[i]);
     // Since there should be one value left in the stack
     // as a result of evaluating the expression,

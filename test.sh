@@ -8,6 +8,14 @@ sub(x, y) { return x-y; }
 add6(a, b, c, d, e, f) {
   return a+b+c+d+e+f;
 }
+
+void alloc4(int **p, int w, int x, int y, int z) {
+  *p = (int*)malloc(4 * sizeof(int));
+  (*p)[0] = w;
+  (*p)[1] = x;
+  (*p)[2] = y;
+  (*p)[3] = z;
+}
 EOF
 
 assert() {
@@ -125,7 +133,52 @@ assert 0 'int main() { int x; x = 0; int y; y = add2(3,4);return x*y; } int add2
 assert 70 'int main() { int x; x = 10; int y; y = add2(3,4);return x*y; } int add2(int x, int y) { return x+y; }'
 
 assert 3 'int main() { int x; int *y; y = &x; *y = 3;return x;}'
+assert 3 'int main() { int x; int *y; y = &x; x = 3; return *y;}'
 assert 3 'int main() { int x;int *y;int **z; z = &y; y = &x; **z = 3; return x;}'
 assert 10 'int main() { int x; de10(&x); return x;} int de10(int *y) { *y = 10; }'
+
+assert 1 '
+int main() {
+int *p;
+alloc4(&p, 1, 2, 4, 8);
+return *p;
+}'
+
+assert 1 '
+int main() {
+int *p;
+alloc4(&p, 1, 2, 4, 8);
+int *q;
+q = p;
+return *q;
+}'
+
+assert 2 '
+int main() {
+int *p;
+alloc4(&p, 1, 2, 4, 8);
+int *q;
+q = p + 1;
+return *q;
+}'
+
+
+assert 4 '
+int main() {
+int *p;
+alloc4(&p, 1, 2, 4, 8);
+int *q;
+q = p + 2;
+return *q;
+}'
+
+assert 8 '
+int main() {
+int *p;
+alloc4(&p, 1, 2, 4, 8);
+int *q;
+q = p + 3;
+return *q;
+}'
 
 echo OK

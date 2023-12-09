@@ -21,6 +21,7 @@ void add_type(Node *node)
     for (Node *arg = node->args; arg; arg = arg->next)
         add_type(arg);
 
+    // printf("varrrr%d\n", node->kind);
     switch (node->kind)
     {
     case ND_ADD:
@@ -55,13 +56,16 @@ void add_type(Node *node)
         return;
     case ND_ADDR:
         node->ty = ty_ptr;
-        node->ty->ptr_to = node->lhs->ty->ptr_to;
+        if (!node->lhs->ty)
+            error("ND_ADDR: invalid pointer address");
+        node->ty->ptr_to = node->lhs->ty;
         return;
     case ND_DEREF:
-        if (!node->lhs->ty->ptr_to)
-            error("invalid pointer dereference");
-
-        node->ty->ptr_to = node->lhs->ty->ptr_to;
+        node->ty = ty_ptr;
+        if (!node->lhs->ty)
+            error("ND_DEREF: invalid pointer dereference");
+        node->ty = node->lhs->ty->ptr_to;
+        // printf("node->ty->size: %d\n", node->ty->size);
         return;
 
     default:

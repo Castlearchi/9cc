@@ -63,7 +63,6 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs)
   Node *node = new_node(kind);
   node->lhs = lhs;
   node->rhs = rhs;
-  node->ty = lhs->ty;
   return node;
 }
 
@@ -71,7 +70,7 @@ static Node *new_unary(NodeKind kind, Node *lhs)
 {
   Node *node = new_node(kind);
   node->lhs = lhs;
-  node->ty = lhs->ty;
+  // node->ty = lhs->ty;
   return node;
 }
 
@@ -235,12 +234,16 @@ static Type *declspec(Token **tok)
   if (consume(tok, "int"))
   {
     cur->tkey = INT;
+    cur->size = 4;
     if (equal(tok, "*"))
     {
       while (consume(tok, "*"))
       {
-        cur = cur->ptr_to = calloc(1, sizeof(Type));
-        cur->tkey = PTR;
+        Type *ptr = calloc(1, sizeof(Type));
+        ptr->ptr_to = cur;
+        ptr->tkey = PTR;
+        ptr->size = 8;
+        cur = ptr;
       }
     }
   }
@@ -508,7 +511,6 @@ static Node *var_init(Token **tok, LVar **locals)
   var->ty = type;
   *locals = var;
   *tok = (*tok)->next;
-
   return new_var_node(var);
 }
 
