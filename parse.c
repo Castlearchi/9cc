@@ -5,7 +5,8 @@ static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_unary(NodeKind kind, Node *lhs);
 static Node *new_num(int val);
 static LVar *find_var(Token **tok, LVar **locals);
-static int type2byte(Type *tkey);
+static int type2byte(Type *ty);
+
 /*
   program    = func*
   func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
@@ -28,8 +29,8 @@ static int type2byte(Type *tkey);
   unary      = "sizeof" unary
               | ("+" | "-" | "*" | "&") unary
               | primary
-  primary    = "(" expr ")" | var_init | ident funcall? | num
-  var_init   = declspec ident ("=" expr)?
+  primary    = "(" expr ")" | var_init | funcall | ident ("[" expr "]")? | num
+  var_init   = declspec ident ("[" num "]")?
   funcall    = ident "(" (assign ("," assign)*)? ")"
 */
 
@@ -90,6 +91,43 @@ static Node *new_var_node(LVar *var)
   return node;
 }
 
+static Node *new_add(Node *lhs, Node *rhs)
+{
+  add_type(lhs);
+  add_type(rhs);
+
+  if (lhs->ty->tkey == INT && rhs->ty->tkey == INT)
+    return new_binary(ND_ADD, lhs, rhs);
+
+  if (lhs->ty->tkey == INT)
+  {
+    Node *tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+  }
+
+  return new_binary(ND_ADD, lhs, new_binary(ND_MUL, rhs, new_num(4)));
+}
+
+// Like `+`, `-` is overloaded for the pointer type.
+static Node *new_sub(Node *lhs, Node *rhs)
+{
+  add_type(lhs);
+  add_type(rhs);
+
+  if (lhs->ty->tkey == INT && rhs->ty->tkey == INT)
+    return new_binary(ND_SUB, lhs, rhs);
+
+  if (lhs->ty->tkey == INT)
+  {
+    Node *tmp = lhs;
+    lhs = rhs;
+    rhs = tmp;
+  }
+
+  return new_binary(ND_SUB, lhs, new_binary(ND_MUL, rhs, new_num(4)));
+}
+
 // Search var name rbut not find return NULL.
 LVar *find_var(Token **tok, LVar **locals)
 {
@@ -101,6 +139,9 @@ LVar *find_var(Token **tok, LVar **locals)
 
 static int type2byte(Type *ty)
 {
+  if (!ty)
+    error("type2byte: ty is none\n");
+
   switch (ty->tkey)
   {
   case INT:
@@ -109,10 +150,12 @@ static int type2byte(Type *ty)
   case PTR:
     return 8;
 
+  case ARRAY:
+    return ty->array_size;
+
   default:
-    error("定義されていない変数型です\n");
+    error("定義されていない変数型です %d\n", ty->tkey);
   }
-  return 0;
 }
 
 // program = func*
@@ -398,14 +441,12 @@ static Node *add(Token **tok, LVar **locals)
   {
     if (consume(tok, "+"))
     {
-      node = new_binary(ND_ADD, node, mul(tok, locals));
-      node->ty = node->lhs->ty;
+      node = new_add(node, mul(tok, locals));
     }
 
     else if (consume(tok, "-"))
     {
-      node = new_binary(ND_SUB, node, mul(tok, locals));
-      node->ty = node->lhs->ty;
+      node = new_sub(node, mul(tok, locals));
     }
 
     else
@@ -451,7 +492,7 @@ static Node *unary(Token **tok, LVar **locals)
   return primary(tok, locals);
 }
 
-// primary    = "(" expr ")" | declspec ident | ident funcall? | num
+// primary    = "(" expr ")" | var_init | funcall | ident ("[" expr "]")? | num
 static Node *primary(Token **tok, LVar **locals)
 {
 
@@ -467,21 +508,31 @@ static Node *primary(Token **tok, LVar **locals)
     return var_init(tok, locals);
   }
 
+  if ((*tok)->kind == TK_IDENT && equal(&(*tok)->next, "("))
+  {
+    return funcall(tok, locals);
+  }
+
   if ((*tok)->kind == TK_IDENT)
   {
-
-    // Function call
-    if (equal(&(*tok)->next, "("))
-      return funcall(tok, locals);
-
     // Variable
     LVar *var = find_var(tok, locals);
-
     if (!var)
       error_tok(tok, "変数が未定義です\n");
 
     *tok = (*tok)->next;
-    return new_var_node(var);
+
+    if (consume(tok, "[")) // Array
+    {
+      Node *node_idx = expr(tok, locals);
+      expect(tok, "]");
+      Node *node_var = new_var_node(var);
+      return new_unary(ND_DEREF, new_add(node_var, node_idx));
+    }
+    else // Normal var
+    {
+      return new_var_node(var);
+    }
   }
 
   if ((*tok)->kind == TK_NUM)
@@ -493,7 +544,7 @@ static Node *primary(Token **tok, LVar **locals)
   return new_node(ND_NONE);
 }
 
-// var_init   = declspec ident
+//   var_init   = declspec ident array_index?
 static Node *var_init(Token **tok, LVar **locals)
 {
   Type *type = declspec(tok);
@@ -504,19 +555,38 @@ static Node *var_init(Token **tok, LVar **locals)
     error_tok(tok, "Here should be variable name.\n");
 
   LVar *var = find_var(tok, locals);
-
   if (var)
     error_tok(tok, "変数が再定義されています\n");
 
   var = calloc(1, sizeof(LVar));
-  var->next = *locals;
   var->name = (*tok)->str;
   var->len = (*tok)->len;
-  var->offset = (*locals)->offset + type2byte(type);
-  var->ty = type;
-  *locals = var;
+  var->next = *locals;
   *tok = (*tok)->next;
-  return new_var_node(var);
+
+  if (consume(tok, "[")) // Array
+  {
+    int idx = expect_number(tok);
+    expect(tok, "]");
+    int type_size = type2byte(type);
+    var->offset = (*locals)->offset + type_size * idx;
+    type->array_size = type_size * idx;
+    type->tkey = ARRAY;
+    Type *ty = calloc(1, sizeof(Type));
+    ty->tkey = type->tkey;
+    ty->size = type_size;
+    type->ptr_to = ty;
+    var->ty = type;
+    *locals = var;
+    return new_unary(ND_DEREF, new_var_node(var));
+  }
+  else // Normal var
+  {
+    var->offset = (*locals)->offset + type2byte(type);
+    var->ty = type;
+    *locals = var;
+    return new_var_node(var);
+  }
 }
 
 // funcall    = ident "(" (assign ("," assign)*)? ")"

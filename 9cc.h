@@ -35,7 +35,8 @@ struct Token
 typedef enum
 {
   INT,
-  PTR
+  PTR,
+  ARRAY
 } TypeKeyword;
 
 typedef struct Type Type;
@@ -43,6 +44,7 @@ struct Type
 {
   TypeKeyword tkey;
   int size;
+  int array_size;      // Use if tkey == ARRAY　array size
   struct Type *ptr_to; // Use if tkey == PTR
 };
 

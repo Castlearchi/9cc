@@ -8,16 +8,27 @@ static void gen_definefunc();
 static char *regards64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *regards32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
 static Function *current_fn;
+int push_pop = 0;
+
+static void push(char *reg)
+{
+  printf("  push %s\n", reg);
+  push_pop++;
+}
 
 static void pop(char *reg)
 {
   printf("  pop %s\n", reg);
+  push_pop--;
 }
 
 static void load(Type *ty)
 {
   if (!ty)
     return;
+  if (ty->tkey == ARRAY)
+    return;
+
   switch (ty->size)
   {
   case 4:
@@ -33,7 +44,11 @@ static void load(Type *ty)
 
 static void store(Type *ty)
 {
-  printf("  pop rdi\n");
+  if (!ty)
+    error("store: ty is none\n");
+
+  pop("rdi");
+
   switch (ty->size)
   {
   case 4:
@@ -69,7 +84,7 @@ static void gen_funcall(Node *node)
   for (Node *arg = node->args; arg; arg = arg->next)
   {
     gen(arg);
-    printf("  push rax\n");
+    push("rax");
     nargs++;
   }
 
@@ -164,7 +179,7 @@ static void gen(Node *node)
     return;
   case ND_ASSIGN:
     gen_addr(node->lhs);
-    printf("  push rax\n");
+    push("rax");
     gen(node->rhs);
     store(node->ty);
     return;
@@ -179,18 +194,17 @@ static void gen(Node *node)
   }
 
   gen(node->lhs);
-  printf("  push rax\n");
+  push("rax");
   gen(node->rhs);
-  printf("  push rax\n");
+  push("rax");
   pop("rdi");
   pop("rax");
 
   char *lreg, *rreg;
-  if (node->lhs->ty->tkey == PTR)
+  if (node->lhs->ty->tkey == PTR || node->lhs->ty->tkey == ARRAY)
   {
     lreg = "rax";
     rreg = "rdi";
-    printf("  imul rdi, %d\n", node->lhs->ty->ptr_to->size);
   }
   else
   {
@@ -258,7 +272,7 @@ static void store_gp(int i, int offset, int size)
 static void gen_definefunc()
 {
   // Allocate memory.
-  printf("  push rbp\n");
+  push("rbp");
   printf("  mov rbp, rsp\n");
   printf("  sub rsp, %d\n", current_fn->stack_size);
 
@@ -287,7 +301,7 @@ static void gen_definefunc()
   // so it becomes the return value.
   printf(".L.return.%s:\n", current_fn->name);
   printf("  mov rsp, rbp\n");
-  printf("  pop rbp\n");
+  pop("rbp");
   printf("  ret\n");
 }
 void codegen(Function *prog)
@@ -301,4 +315,7 @@ void codegen(Function *prog)
     printf("%s:\n", fn->name);
     gen_definefunc();
   }
+
+  if (push_pop != 0)
+    error("pushとpopの数が合わない push - pop = %d\n", push_pop);
 }

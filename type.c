@@ -1,12 +1,14 @@
 #include "9cc.h"
 
-Type *ty_int = &(Type){INT, 4};
-Type *ty_ptr = &(Type){PTR, 8};
+Type *ty_int = &(Type){INT, 4, 0};
+Type *ty_ptr = &(Type){PTR, 8, 0};
 
 void add_type(Node *node)
 {
     if (!node || node->ty)
         return;
+
+    // printf("add_type: %d\n", node->kind);
 
     add_type(node->next);
     add_type(node->lhs);
@@ -21,9 +23,12 @@ void add_type(Node *node)
     for (Node *arg = node->args; arg; arg = arg->next)
         add_type(arg);
 
-    // printf("varrrr%d\n", node->kind);
     switch (node->kind)
     {
+    case ND_NUM:
+        node->ty = ty_int;
+        return;
+    case ND_NEG:
     case ND_ADD:
     case ND_SUB:
     case ND_MUL:
@@ -32,10 +37,6 @@ void add_type(Node *node)
     case ND_NE:
     case ND_LT:
     case ND_LE:
-    case ND_NUM:
-        node->ty = ty_int;
-        return;
-    case ND_NEG:
     case ND_ASSIGN:
     case ND_RETURN:
     case ND_SIZEOF:
@@ -62,11 +63,9 @@ void add_type(Node *node)
         node->ty->ptr_to = node->lhs->ty;
         return;
     case ND_DEREF:
-        node->ty = ty_ptr;
-        if (!node->lhs->ty)
+        if (!node->lhs->ty->ptr_to)
             error("ND_DEREF: invalid pointer dereference");
         node->ty = node->lhs->ty->ptr_to;
-        // printf("node->ty->size: %d\n", node->ty->size);
         return;
 
     default:
