@@ -151,7 +151,7 @@ static int type2byte(Type *ty)
     return 8;
 
   case ARRAY:
-    return ty->array_size;
+    return ty->size;
 
   default:
     error("定義されていない変数型です %d\n", ty->tkey);
@@ -568,13 +568,14 @@ static Node *var_init(Token **tok, LVar **locals)
   {
     int idx = expect_number(tok);
     expect(tok, "]");
-    int type_size = type2byte(type);
+
+    int type_size = type->size;
     var->offset = (*locals)->offset + type_size * idx;
-    type->array_size = type_size * idx;
-    type->tkey = ARRAY;
+    type->size *= idx;
     Type *ty = calloc(1, sizeof(Type));
     ty->tkey = type->tkey;
     ty->size = type_size;
+    type->tkey = ARRAY;
     type->ptr_to = ty;
     var->ty = type;
     *locals = var;
