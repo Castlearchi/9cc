@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef struct Node Node;
+
 //
 // tokenize.c
 //
@@ -47,15 +49,26 @@ struct Type
   struct Type *ptr_to; // Use if tkey == PTR
 };
 
-// Local Variable
-typedef struct LVar LVar;
-struct LVar
+// Variable or function
+typedef struct Obj Obj;
+struct Obj
 {
-  LVar *next; // Next var or NULL
-  char *name; // Var name
-  size_t len; // Name length
-  int offset; // Offset from RBP
-  Type *ty;   // Type
+  Obj *next;     // Next var or NULL
+  char *name;    // Var name
+  size_t len;    // Name length
+  int offset;    // Offset from RBP
+  Type *ty;      // Type
+  bool is_local; // local or global/function
+
+  // Global variable or function
+  bool is_function;
+
+  Obj *params;
+  Node **body;
+  int stmt_count;
+  Obj **locals;
+  int stack_size;
+  int regards_num;
 };
 
 void error(char *fmt, ...);
@@ -63,6 +76,7 @@ void error_at(char *loc, char *fmt, ...);
 void error_tok(Token **tok, char *fmt, ...);
 bool consume(Token **tok, char *op);
 bool equal(Token **tok, char *op);
+bool xnext_equal(Token **tok, char *op, int x);
 bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
@@ -103,7 +117,6 @@ typedef enum
 } NodeKind;
 
 // AST node type
-typedef struct Node Node;
 struct Node
 {
   NodeKind kind; // Node kind
@@ -133,31 +146,15 @@ struct Node
   Node *args;        // Fucntion parameter value
   int parameter_num; // Number of Fucntion parameters
 
-  LVar *var; // Use if kind == ND_VAR
+  Obj *var; // Use if kind == ND_VAR
 };
 
-// Function
-typedef struct Function Function;
-struct Function
-{
-  Function *next;
-  char *name;
-  LVar *params;
-  Type *ty; // return var type
-
-  Node **body;
-  int stmt_count;
-  LVar **locals;
-  int stack_size;
-  int regards_num;
-};
-
-Function *parse(Token **tok);
+Obj *parse(Token **tok);
 
 //
 // codegen.c
 //
-void codegen(Function *prog);
+void codegen(Obj *prog);
 
 //
 // type.c

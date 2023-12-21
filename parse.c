@@ -1,16 +1,18 @@
 #include "9cc.h"
 
+Obj *globals;
+
 static Node *new_node(NodeKind kind);
 static Node *new_binary(NodeKind kind, Node *lhs, Node *rhs);
 static Node *new_unary(NodeKind kind, Node *lhs);
 static Node *new_num(int val);
-static LVar *find_var(Token **tok, LVar **locals);
+static Obj *find_var(Token **tok, Obj **locals);
 static int type2byte(Type *ty);
 
 /*
-  program    = func*
+  program    = ( declspec (func | var_init ";") )*
   func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
-  declarator = declspec ident
+  declarator = ident
   func_params= (param ("," param)*)?
   param      = declspec ident
   declspec   = "int" ("*")*
@@ -29,28 +31,55 @@ static int type2byte(Type *ty);
   unary      = "sizeof" unary
               | ("+" | "-" | "*" | "&") unary
               | primary
-  primary    = "(" expr ")" | var_init | funcall | ident ("[" expr "]")? | num
-  var_init   = declspec ident ("[" num "]")?
+  primary    = "(" expr ")" | declspec var_init | funcall | ident ("[" expr "]")? | num
+  var_init   = ident ("[" num "]")?
   funcall    = ident "(" (assign ("," assign)*)? ")"
 */
 
-static Function *program(Token **tok);
-static Function *func(Token **tok);
-static Function *declarator(Token **tok);
-static void func_params(Token **tok, Function *fn);
-static LVar *param(Token **tok, LVar *params);
+static Obj *program(Token **tok);
+static Obj *func(Type *type, Token **tok);
+static Obj *declarator(Type *type, Token **tok);
+static void func_params(Token **tok, Obj *fn);
+static Obj *param(Token **tok, Obj *params);
 static Type *declspec(Token **tok);
-static Node *stmt(Token **tok, LVar **locals);
-static Node *expr(Token **tok, LVar **locals);
-static Node *assign(Token **tok, LVar **locals);
-static Node *equality(Token **tok, LVar **locals);
-static Node *relational(Token **tok, LVar **locals);
-static Node *add(Token **tok, LVar **locals);
-static Node *mul(Token **tok, LVar **locals);
-static Node *unary(Token **tok, LVar **locals);
-static Node *primary(Token **tok, LVar **locals);
-static Node *funcall(Token **tok, LVar **locals);
-static Node *var_init(Token **tok, LVar **locals);
+static Node *stmt(Token **tok, Obj **locals);
+static Node *expr(Token **tok, Obj **locals);
+static Node *assign(Token **tok, Obj **locals);
+static Node *equality(Token **tok, Obj **locals);
+static Node *relational(Token **tok, Obj **locals);
+static Node *add(Token **tok, Obj **locals);
+static Node *mul(Token **tok, Obj **locals);
+static Node *unary(Token **tok, Obj **locals);
+static Node *primary(Token **tok, Obj **locals);
+static Node *funcall(Token **tok, Obj **locals);
+static Node *var_init(Type *type, Token **tok, Obj **vars);
+
+static Obj *new_gvar(char *name, Type *ty, Token **tok)
+{
+  Obj *var = calloc(1, sizeof(Obj));
+  var->len = (*tok)->len;
+  if (consume(tok, "["))
+  {
+    int idx = expect_number(tok);
+    int type_size = ty->size;
+    Type *ptr_to = calloc(1, sizeof(Type));
+    ptr_to->tkey = ty->tkey;
+    ty->tkey = ARRAY;
+    ty->size *= idx;
+    ptr_to->size = type_size;
+    ty->ptr_to = ptr_to;
+    expect(tok, "]");
+  }
+  var->name = name;
+  var->ty = ty;
+
+  var->next = globals;
+  var->is_local = false;
+  var->is_function = false;
+
+  globals = var;
+  return var;
+}
 
 static Node *new_node(NodeKind kind)
 {
@@ -72,7 +101,6 @@ static Node *new_unary(NodeKind kind, Node *lhs)
 {
   Node *node = new_node(kind);
   node->lhs = lhs;
-  // node->ty = lhs->ty;
   return node;
 }
 
@@ -83,7 +111,7 @@ static Node *new_num(int val)
   return node;
 }
 
-static Node *new_var_node(LVar *var)
+static Node *new_var_node(Obj *var)
 {
   Node *node = new_node(ND_VAR);
   node->var = var;
@@ -129,11 +157,16 @@ static Node *new_sub(Node *lhs, Node *rhs)
 }
 
 // Search var name rbut not find return NULL.
-LVar *find_var(Token **tok, LVar **locals)
+Obj *find_var(Token **tok, Obj **locals)
 {
-  for (LVar *var = *locals; var; var = var->next)
+  for (Obj *var = *locals; var; var = var->next) // Local var
     if (var->len == (*tok)->len && !memcmp((*tok)->str, var->name, var->len))
       return var;
+
+  for (Obj *var = globals; var; var = var->next) // Global var
+    if (var->len == (*tok)->len && !memcmp((*tok)->str, var->name, var->len))
+      return var;
+
   return NULL;
 }
 
@@ -158,23 +191,39 @@ static int type2byte(Type *ty)
   }
 }
 
-// program = func*
-static Function *program(Token **tok)
+// program = ( declspec (func | var_init ";") )*
+static Obj *program(Token **tok)
 {
-  Function head = {};
-  Function *cur = &head;
+  Obj head = {};
+  Obj *cur = &head;
+  globals = calloc(1, sizeof(Obj));
   while (!at_eof(tok))
   {
-    cur = cur->next = func(tok);
+    Type *type = declspec(tok);
+    if (!type)
+      error_tok(tok, "program: Here should be type. %d\n", (*tok)->kind);
+
+    if (xnext_equal(tok, "(", 1)) // func
+      cur = cur->next = func(type, tok);
+    else // global var
+    {
+      if ((*tok)->kind != TK_IDENT)
+        error_tok(tok, "program: Here should be ident. %d\n", (*tok)->kind);
+      char *name = (*tok)->str;
+      (*tok) = (*tok)->next;
+      cur = cur->next = new_gvar(name, type, tok);
+      expect(tok, ";");
+    }
   }
 
   return head.next;
 }
 
 // func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
-static Function *func(Token **tok)
+static Obj *func(Type *type, Token **tok)
 {
-  Function *fn = declarator(tok);
+  Obj *fn = declarator(type, tok);
+  fn->is_function = true;
 
   expect(tok, "(");
 
@@ -184,8 +233,8 @@ static Function *func(Token **tok)
 
   expect(tok, "{");
 
-  LVar **locals = (LVar **)calloc(1, sizeof(LVar *));
-  *locals = (LVar *)calloc(1, sizeof(LVar));
+  Obj **locals = (Obj **)calloc(1, sizeof(Obj *));
+  *locals = (Obj *)calloc(1, sizeof(Obj));
   *locals = fn->params;
 
   fn->body = calloc(1, sizeof(Node *));
@@ -198,7 +247,7 @@ static Function *func(Token **tok)
   }
 
   int stack_size = 0;
-  for (LVar *var = *locals; var->next; var = var->next)
+  for (Obj *var = *locals; var->next; var = var->next)
   {
     int size = type2byte(var->ty);
     stack_size += size;
@@ -211,21 +260,20 @@ static Function *func(Token **tok)
 }
 
 // declarator = declspec ident
-static Function *declarator(Token **tok)
+static Obj *declarator(Type *type, Token **tok)
 {
-  Function *fn = (Function *)calloc(1, sizeof(Function));
-  Type *type = declspec(tok);
+  Obj *fn = (Obj *)calloc(1, sizeof(Obj));
   if (!expect_ident(tok))
-    error_tok(tok, "Here should be function name. %d\n", (*tok)->kind);
+    error_tok(tok, "Here should be Obj name. %d\n", (*tok)->kind);
   fn->ty = type;
   fn->name = (*tok)->str;
   *tok = (*tok)->next;
   return fn;
 }
 // func_params= (param ("," param)*)?
-static void func_params(Token **tok, Function *fn)
+static void func_params(Token **tok, Obj *fn)
 {
-  LVar *params = (LVar *)calloc(1, sizeof(LVar));
+  Obj *params = (Obj *)calloc(1, sizeof(Obj));
   int offset = 0;
 
   params->next = NULL;
@@ -249,21 +297,22 @@ static void func_params(Token **tok, Function *fn)
 }
 
 // param      = declspec ident
-static LVar *param(Token **tok, LVar *params)
+static Obj *param(Token **tok, Obj *params)
 {
   Type *type = declspec(tok);
   if ((*tok)->kind != TK_IDENT)
-    error_tok(tok, "Here should be function argument name.\n");
-  LVar *lvar = find_var(tok, &params);
-  if (lvar)
+    error_tok(tok, "Here should be Obj argument name.\n");
+  Obj *NoObj = find_var(tok, &params);
+  if (NoObj)
     error_tok(tok, "Redeclaration of argument.\n");
-  lvar = calloc(1, sizeof(LVar));
-  lvar->next = params;
-  lvar->name = (*tok)->str;
-  lvar->len = (*tok)->len;
-  lvar->offset = params->offset + type2byte(type);
-  lvar->ty = type;
-  params = lvar;
+  Obj *obj = calloc(1, sizeof(Obj));
+  obj->next = params;
+  obj->name = (*tok)->str;
+  obj->len = (*tok)->len;
+  obj->offset = params->offset + type2byte(type);
+  obj->ty = type;
+  obj->is_local = true;
+  params = obj;
   *tok = (*tok)->next;
   return params;
 }
@@ -291,6 +340,7 @@ static Type *declspec(Token **tok)
       }
     }
   }
+
   return cur;
 }
 
@@ -300,7 +350,7 @@ static Type *declspec(Token **tok)
 //            | "if" "(" expr ")" stmt ("else" stmt)?
 //            | "while" "(" expr ")" stmt
 //            | "for" (" expr? ";" expr? ";" expr? ")" stmt
-static Node *stmt(Token **tok, LVar **locals)
+static Node *stmt(Token **tok, Obj **locals)
 {
   Node *node;
   if (at_eof(tok))
@@ -385,13 +435,13 @@ static Node *stmt(Token **tok, LVar **locals)
 }
 
 // expr = assign
-static Node *expr(Token **tok, LVar **locals)
+static Node *expr(Token **tok, Obj **locals)
 {
   return assign(tok, locals);
 }
 
 // assign = equality ("=" assign)?
-static Node *assign(Token **tok, LVar **locals)
+static Node *assign(Token **tok, Obj **locals)
 {
   Node *node = equality(tok, locals);
   if (consume(tok, "="))
@@ -400,7 +450,7 @@ static Node *assign(Token **tok, LVar **locals)
 }
 
 // equality = relational ("==" relational | "!=" relational)*
-static Node *equality(Token **tok, LVar **locals)
+static Node *equality(Token **tok, Obj **locals)
 {
   Node *node = relational(tok, locals);
 
@@ -416,7 +466,7 @@ static Node *equality(Token **tok, LVar **locals)
 }
 
 // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-static Node *relational(Token **tok, LVar **locals)
+static Node *relational(Token **tok, Obj **locals)
 {
   Node *node = add(tok, locals);
   for (;;)
@@ -434,7 +484,7 @@ static Node *relational(Token **tok, LVar **locals)
   }
 }
 // add = mul ("+" mul | "-" mul)*
-static Node *add(Token **tok, LVar **locals)
+static Node *add(Token **tok, Obj **locals)
 {
   Node *node = mul(tok, locals);
   for (;;)
@@ -454,7 +504,7 @@ static Node *add(Token **tok, LVar **locals)
   }
 }
 // mul = unary ("*" unary | "/" unary)*
-static Node *mul(Token **tok, LVar **locals)
+static Node *mul(Token **tok, Obj **locals)
 {
   Node *node = unary(tok, locals);
 
@@ -472,7 +522,7 @@ static Node *mul(Token **tok, LVar **locals)
 // unary      = "sizeof" unary
 //             | ("+" | "-" | "*" | "&") unary
 //             | primary
-static Node *unary(Token **tok, LVar **locals)
+static Node *unary(Token **tok, Obj **locals)
 {
   if (consume(tok, "sizeof"))
     return new_unary(ND_SIZEOF, unary(tok, locals));
@@ -492,8 +542,8 @@ static Node *unary(Token **tok, LVar **locals)
   return primary(tok, locals);
 }
 
-// primary    = "(" expr ")" | var_init | funcall | ident ("[" expr "]")? | num
-static Node *primary(Token **tok, LVar **locals)
+// primary    = "(" expr ")" | declspec var_init | funcall | ident ("[" expr "]")? | num
+static Node *primary(Token **tok, Obj **locals)
 {
 
   if (consume(tok, "("))
@@ -505,10 +555,13 @@ static Node *primary(Token **tok, LVar **locals)
 
   if ((*tok)->kind == TK_TYPE)
   {
-    return var_init(tok, locals);
+    Type *type = declspec(tok);
+    if (!type)
+      error_tok(tok, "Type is not defined.\n");
+    return var_init(type, tok, locals);
   }
 
-  if ((*tok)->kind == TK_IDENT && equal(&(*tok)->next, "("))
+  if ((*tok)->kind == TK_IDENT && xnext_equal(tok, "(", 1))
   {
     return funcall(tok, locals);
   }
@@ -516,7 +569,7 @@ static Node *primary(Token **tok, LVar **locals)
   if ((*tok)->kind == TK_IDENT)
   {
     // Variable
-    LVar *var = find_var(tok, locals);
+    Obj *var = find_var(tok, locals);
     if (!var)
       error_tok(tok, "変数が未定義です\n");
 
@@ -544,24 +597,21 @@ static Node *primary(Token **tok, LVar **locals)
   return new_node(ND_NONE);
 }
 
-//   var_init   = declspec ident array_index?
-static Node *var_init(Token **tok, LVar **locals)
+//   var_init   = ident array_index?
+static Node *var_init(Type *type, Token **tok, Obj **vars)
 {
-  Type *type = declspec(tok);
-  if (!type)
-    return NULL;
-
   if ((*tok)->kind != TK_IDENT)
     error_tok(tok, "Here should be variable name.\n");
 
-  LVar *var = find_var(tok, locals);
+  Obj *var = find_var(tok, vars);
   if (var)
     error_tok(tok, "変数が再定義されています\n");
 
-  var = calloc(1, sizeof(LVar));
+  var = calloc(1, sizeof(Obj));
   var->name = (*tok)->str;
   var->len = (*tok)->len;
-  var->next = *locals;
+  var->next = *vars;
+  var->is_local = true;
   *tok = (*tok)->next;
 
   if (consume(tok, "[")) // Array
@@ -570,7 +620,7 @@ static Node *var_init(Token **tok, LVar **locals)
     expect(tok, "]");
 
     int type_size = type->size;
-    var->offset = (*locals)->offset + type_size * idx;
+    var->offset = (*vars)->offset + type_size * idx;
     type->size *= idx;
     Type *ty = calloc(1, sizeof(Type));
     ty->tkey = type->tkey;
@@ -578,20 +628,20 @@ static Node *var_init(Token **tok, LVar **locals)
     type->tkey = ARRAY;
     type->ptr_to = ty;
     var->ty = type;
-    *locals = var;
+    *vars = var;
     return new_unary(ND_DEREF, new_var_node(var));
   }
   else // Normal var
   {
-    var->offset = (*locals)->offset + type2byte(type);
+    var->offset = (*vars)->offset + type2byte(type);
     var->ty = type;
-    *locals = var;
+    *vars = var;
     return new_var_node(var);
   }
 }
 
 // funcall    = ident "(" (assign ("," assign)*)? ")"
-static Node *funcall(Token **tok, LVar **locals)
+static Node *funcall(Token **tok, Obj **locals)
 {
   Token *start = *tok;
   *tok = (*tok)->next->next;
@@ -614,7 +664,7 @@ static Node *funcall(Token **tok, LVar **locals)
   return node;
 }
 
-Function *parse(Token **tok)
+Obj *parse(Token **tok)
 {
   return program(tok);
 }

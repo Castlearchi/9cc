@@ -64,10 +64,25 @@ bool consume(Token **tok, char *op)
   return false;
 }
 
-// Consumes the current token if it matches `op`.
+// Ensure the current token if it matches `op`.
 bool equal(Token **tok, char *op)
 {
   return memcmp((*tok)->str, op, (*tok)->len) == 0 && op[(*tok)->len] == '\0';
+}
+
+// Ensure that the x-next token is `op`.
+// ex. xnext_equal(tok, "==", 2)
+// => equal(&(tok->next->next), "==")
+bool xnext_equal(Token **tok, char *op, int x)
+{
+  Token *cur = *tok;
+  for (int i = 0; i < x; i++)
+  {
+    if (cur->next == NULL)
+      error_tok(tok, "xnext_equal: %dnext token is NULL", i);
+    cur = cur->next;
+  }
+  return equal(&cur, op);
 }
 
 bool expect_ident(Token **tok)

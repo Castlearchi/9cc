@@ -3,11 +3,11 @@
 static void gen(Node *node);
 static void gen_addr(Node *node);
 static void gen_funcall(Node *node);
-static void gen_definefunc();
+static void gen_topnode();
 
 static char *regards64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *regards32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
-static Function *current_fn;
+static Obj *current_fn;
 int push_pop = 0;
 
 static void push(char *reg)
@@ -67,8 +67,15 @@ static void gen_addr(Node *node)
   switch (node->kind)
   {
   case ND_VAR:
-    printf("  mov rax, rbp\n");
-    printf("  sub rax, %d\n", node->var->offset);
+    if (node->var->is_local)
+    {
+      printf("  mov rax, rbp\n");
+      printf("  sub rax, %d\n", node->var->offset);
+    }
+    else
+    {
+      printf("  lea rax, %s[rip]\n", node->var->name);
+    }
     return;
   case ND_DEREF:
     gen(node->lhs);
@@ -269,51 +276,65 @@ static void store_gp(int i, int offset, int size)
   }
 }
 
-static void gen_definefunc()
+static void gen_topnode()
 {
-  // Allocate memory.
-  push("rbp");
-  printf("  mov rbp, rsp\n");
-  printf("  sub rsp, %d\n", current_fn->stack_size);
-
-  // Save passed-by-register arguments to the stack
-  int i = current_fn->regards_num - 1;
-  for (LVar *param = current_fn->params; param->next; param = param->next)
+  // Global var init
+  if (current_fn->is_function)
   {
-    store_gp(i--, param->offset, param->ty->size);
-  }
+    printf("  .globl %s\n", current_fn->name);
+    printf("  .text\n");
+    printf("%s:\n", current_fn->name);
 
-  // Traverse the AST to emit assembly.
-  int code_num = current_fn->stmt_count;
-  for (int i = 0; i < code_num; i++)
-  {
-    add_type(current_fn->body[i]);
-  }
-  for (int i = 0; i < code_num; i++)
-  {
-    gen(current_fn->body[i]);
-    // Since there should be one value left in the stack
-    // as a result of evaluating the expression,
-    // make sure to pop it to avoid overflowing the stack.
-  }
+    // Allocate memory.
+    push("rbp");
+    printf("  mov rbp, rsp\n");
+    printf("  sub rsp, %d\n", current_fn->stack_size);
 
-  // The result of the last expression is stored in RAX,
-  // so it becomes the return value.
-  printf(".L.return.%s:\n", current_fn->name);
-  printf("  mov rsp, rbp\n");
-  pop("rbp");
-  printf("  ret\n");
+    // Save passed-by-register arguments to the stack
+    int i = current_fn->regards_num - 1;
+    for (Obj *param = current_fn->params; param->next; param = param->next)
+    {
+      store_gp(i--, param->offset, param->ty->size);
+    }
+
+    // Traverse the AST to emit assembly.
+    int code_num = current_fn->stmt_count;
+    for (int i = 0; i < code_num; i++)
+    {
+      add_type(current_fn->body[i]);
+    }
+    for (int i = 0; i < code_num; i++)
+    {
+      gen(current_fn->body[i]);
+      // Since there should be one value left in the stack
+      // as a result of evaluating the expression,
+      // make sure to pop it to avoid overflowing the stack.
+    }
+
+    // The result of the last expression is stored in RAX,
+    // so it becomes the return value.
+    printf(".L.return.%s:\n", current_fn->name);
+    printf("  mov rsp, rbp\n");
+    pop("rbp");
+    printf("  ret\n");
+  }
+  else
+  {
+    printf("  .data\n");
+    printf("  .globl %s\n", current_fn->name);
+    printf("%s:\n", current_fn->name);
+    printf("  .zero %d\n", current_fn->ty->size);
+    return;
+  }
 }
-void codegen(Function *prog)
+void codegen(Obj *prog)
 {
   // Print out the first half of assembly.
-  printf(".intel_syntax noprefix\n");
-  for (Function *fn = prog; fn; fn = fn->next)
+  printf("  .intel_syntax noprefix\n");
+  for (Obj *top = prog; top; top = top->next)
   {
-    current_fn = fn;
-    printf(".global %s\n", fn->name);
-    printf("%s:\n", fn->name);
-    gen_definefunc();
+    current_fn = top;
+    gen_topnode();
   }
 
   if (push_pop != 0)
