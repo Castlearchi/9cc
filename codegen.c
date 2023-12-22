@@ -7,6 +7,8 @@ static void gen_topnode();
 
 static char *regards64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *regards32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
+static char *regards8[] = {"DIL", "SIL", "DL", "CL", "R8B", "R9B"};
+
 static Obj *current_fn;
 int push_pop = 0;
 
@@ -31,6 +33,9 @@ static void load(Type *ty)
 
   switch (ty->size)
   {
+  case 1:
+    printf("  mov AL, BYTE PTR [rax]\n");
+    break;
   case 4:
     printf("  mov eax, [rax]\n");
     break;
@@ -51,6 +56,9 @@ static void store(Type *ty)
 
   switch (ty->size)
   {
+  case 1:
+    printf("  mov [rdi], AL\n");
+    break;
   case 4:
     printf("  mov [rdi], eax\n");
     break;
@@ -174,7 +182,7 @@ static void gen(Node *node)
     printf("  mov eax, %d\n", node->val);
     return;
   case ND_NEG:
-    gen_addr(node->lhs);
+    gen(node->lhs);
     printf("  neg rax\n");
     return;
   case ND_VAR:
@@ -265,6 +273,9 @@ static void store_gp(int i, int offset, int size)
 
   switch (size)
   {
+  case 1:
+    printf("  mov [rax], %s\n", regards8[i]);
+    return;
   case 4:
     printf("  mov [rax], %s\n", regards32[i]);
     return;

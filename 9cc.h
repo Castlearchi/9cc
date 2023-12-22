@@ -36,6 +36,7 @@ struct Token
 
 typedef enum
 {
+  CHAR,
   INT,
   PTR,
   ARRAY

@@ -15,7 +15,8 @@ static int type2byte(Type *ty);
   declarator = ident
   func_params= (param ("," param)*)?
   param      = declspec ident
-  declspec   = "int" ("*")*
+  declspec   = "int" fill_ptr_to
+  fill_ptr_to= ("*")*
   stmt       = expr ";"
               | "{" stmt* "}"
               | "return" expr ";"
@@ -42,6 +43,7 @@ static Obj *declarator(Type *type, Token **tok);
 static void func_params(Token **tok, Obj *fn);
 static Obj *param(Token **tok, Obj *params);
 static Type *declspec(Token **tok);
+static Type *fill_ptr_to(Token **tok, Type *cur);
 static Node *stmt(Token **tok, Obj **locals);
 static Node *expr(Token **tok, Obj **locals);
 static Node *assign(Token **tok, Obj **locals);
@@ -134,7 +136,7 @@ static Node *new_add(Node *lhs, Node *rhs)
     rhs = tmp;
   }
 
-  return new_binary(ND_ADD, lhs, new_binary(ND_MUL, rhs, new_num(4)));
+  return new_binary(ND_ADD, lhs, new_binary(ND_MUL, rhs, new_num(type2byte(lhs->ty))));
 }
 
 // Like `+`, `-` is overloaded for the pointer type.
@@ -153,7 +155,7 @@ static Node *new_sub(Node *lhs, Node *rhs)
     rhs = tmp;
   }
 
-  return new_binary(ND_SUB, lhs, new_binary(ND_MUL, rhs, new_num(4)));
+  return new_binary(ND_SUB, lhs, new_binary(ND_MUL, rhs, new_num(type2byte(lhs->ty))));
 }
 
 // Search var name rbut not find return NULL.
@@ -177,6 +179,9 @@ static int type2byte(Type *ty)
 
   switch (ty->tkey)
   {
+  case CHAR:
+    return 1;
+
   case INT:
     return 4;
 
@@ -270,6 +275,7 @@ static Obj *declarator(Type *type, Token **tok)
   *tok = (*tok)->next;
   return fn;
 }
+
 // func_params= (param ("," param)*)?
 static void func_params(Token **tok, Obj *fn)
 {
@@ -317,7 +323,7 @@ static Obj *param(Token **tok, Obj *params)
   return params;
 }
 
-// declspec = "int" ("*")*
+// declspec   = ("int" | "char") fill_ptr_to
 static Type *declspec(Token **tok)
 {
   Type *cur = calloc(1, sizeof(Type));
@@ -329,16 +335,30 @@ static Type *declspec(Token **tok)
     cur->tkey = INT;
     cur->size = 4;
     if (equal(tok, "*"))
-    {
-      while (consume(tok, "*"))
-      {
-        Type *ptr = calloc(1, sizeof(Type));
-        ptr->ptr_to = cur;
-        ptr->tkey = PTR;
-        ptr->size = 8;
-        cur = ptr;
-      }
-    }
+      cur = fill_ptr_to(tok, cur);
+  }
+
+  else if (consume(tok, "char"))
+  {
+    cur->tkey = CHAR;
+    cur->size = 1;
+    if (equal(tok, "*"))
+      cur = fill_ptr_to(tok, cur);
+  }
+
+  return cur;
+}
+
+// fill_ptr_to = ("*")*
+static Type *fill_ptr_to(Token **tok, Type *cur)
+{
+  while (consume(tok, "*"))
+  {
+    Type *ptr = calloc(1, sizeof(Type));
+    ptr->ptr_to = cur;
+    ptr->tkey = PTR;
+    ptr->size = 8;
+    cur = ptr;
   }
 
   return cur;
