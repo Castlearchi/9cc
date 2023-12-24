@@ -32,9 +32,15 @@ static int type2byte(Type *ty);
   unary      = "sizeof" unary
               | ("+" | "-" | "*" | "&") unary
               | primary
-  primary    = "(" expr ")" | declspec var_init | funcall | ident ("[" expr "]")? | num
+  primary    = "(" expr ")"
+              | declspec var_init
+              | funcall
+              | ident array_index?
+              | str array_index?
+              | num
   var_init   = ident ("[" num "]")?
   funcall    = ident "(" (assign ("," assign)*)? ")"
+  array_index= ("[" expr "]")?
 */
 
 static Obj *program(Token **tok);
@@ -55,13 +61,17 @@ static Node *unary(Token **tok, Obj **locals);
 static Node *primary(Token **tok, Obj **locals);
 static Node *funcall(Token **tok, Obj **locals);
 static Node *var_init(Type *type, Token **tok, Obj **vars);
+static Node *array_index(Token **tok, Obj **locals);
 
 static Obj *new_gvar(char *name, Type *ty, Token **tok)
 {
   Obj *var = calloc(1, sizeof(Obj));
   var->len = (*tok)->len;
-  if (consume(tok, "["))
+  int token_type = (*tok)->kind;
+  *tok = (*tok)->next;
+  if (equal(tok, "[") && token_type != TK_STR)
   {
+    *tok = (*tok)->next;
     int idx = expect_number(tok);
     int type_size = ty->size;
     Type *ptr_to = calloc(1, sizeof(Type));
@@ -80,6 +90,26 @@ static Obj *new_gvar(char *name, Type *ty, Token **tok)
   var->is_function = false;
 
   globals = var;
+  return var;
+}
+
+static char *new_unique_name(void)
+{
+  static int id = 0;
+  char *buf = calloc(1, 20);
+  sprintf(buf, ".L..%d", id++);
+  return buf;
+}
+
+static Obj *new_anon_gvar(Type *ty, Token **tok)
+{
+  return new_gvar(new_unique_name(), ty, tok);
+}
+
+static Obj *new_string_literal(char *p, Type *ty, Token **tok)
+{
+  Obj *var = new_anon_gvar(ty, tok);
+  var->init_data = p;
   return var;
 }
 
@@ -126,7 +156,8 @@ static Node *new_add(Node *lhs, Node *rhs)
   add_type(lhs);
   add_type(rhs);
 
-  if (lhs->ty->tkey == INT && rhs->ty->tkey == INT)
+  if ((lhs->ty->tkey == INT || lhs->ty->tkey == CHAR) &&
+      (rhs->ty->tkey == INT || rhs->ty->tkey == CHAR))
     return new_binary(ND_ADD, lhs, rhs);
 
   if (lhs->ty->tkey == INT)
@@ -136,7 +167,7 @@ static Node *new_add(Node *lhs, Node *rhs)
     rhs = tmp;
   }
 
-  return new_binary(ND_ADD, lhs, new_binary(ND_MUL, rhs, new_num(type2byte(lhs->ty))));
+  return new_binary(ND_ADD, lhs, new_binary(ND_MUL, rhs, new_num(type2byte(lhs->ty->ptr_to))));
 }
 
 // Like `+`, `-` is overloaded for the pointer type.
@@ -199,29 +230,33 @@ static int type2byte(Type *ty)
 // program = ( declspec (func | var_init ";") )*
 static Obj *program(Token **tok)
 {
-  Obj head = {};
-  Obj *cur = &head;
-  globals = calloc(1, sizeof(Obj));
+  globals = (Obj *)calloc(1, sizeof(Obj));
+  globals = NULL;
+
   while (!at_eof(tok))
   {
+
     Type *type = declspec(tok);
     if (!type)
       error_tok(tok, "program: Here should be type. %d\n", (*tok)->kind);
 
-    if (xnext_equal(tok, "(", 1)) // func
-      cur = cur->next = func(type, tok);
+    if (equal_xnext(tok, "(", 1)) // func
+    {
+      Obj *fn = func(type, tok);
+      fn->next = globals;
+      globals = fn;
+    }
     else // global var
     {
       if ((*tok)->kind != TK_IDENT)
         error_tok(tok, "program: Here should be ident. %d\n", (*tok)->kind);
       char *name = (*tok)->str;
-      (*tok) = (*tok)->next;
-      cur = cur->next = new_gvar(name, type, tok);
+      new_gvar(name, type, tok);
       expect(tok, ";");
     }
   }
 
-  return head.next;
+  return globals;
 }
 
 // func       = declarator ( "(" func_params ")" ) "{" stmt* "}"
@@ -562,7 +597,12 @@ static Node *unary(Token **tok, Obj **locals)
   return primary(tok, locals);
 }
 
-// primary    = "(" expr ")" | declspec var_init | funcall | ident ("[" expr "]")? | num
+// primary    = "(" expr ")"
+//             | declspec var_init
+//             | funcall
+//             | ident array_index?
+//             | str array_index?
+//             | num
 static Node *primary(Token **tok, Obj **locals)
 {
 
@@ -581,7 +621,7 @@ static Node *primary(Token **tok, Obj **locals)
     return var_init(type, tok, locals);
   }
 
-  if ((*tok)->kind == TK_IDENT && xnext_equal(tok, "(", 1))
+  if ((*tok)->kind == TK_IDENT && equal_xnext(tok, "(", 1))
   {
     return funcall(tok, locals);
   }
@@ -595,14 +635,41 @@ static Node *primary(Token **tok, Obj **locals)
 
     *tok = (*tok)->next;
 
-    if (consume(tok, "[")) // Array
+    if (equal(tok, "[")) // Array
     {
-      Node *node_idx = expr(tok, locals);
-      expect(tok, "]");
+      Node *node_idx = array_index(tok, locals);
       Node *node_var = new_var_node(var);
       return new_unary(ND_DEREF, new_add(node_var, node_idx));
     }
     else // Normal var
+    {
+      return new_var_node(var);
+    }
+  }
+
+  if ((*tok)->kind == TK_STR)
+  {
+    Type *ty = calloc(1, sizeof(Type));
+    Type *ptr_to = calloc(1, sizeof(Type));
+    char *str = (*tok)->str;
+
+    ty->tkey = ARRAY;
+    ty->size = (*tok)->len + 1;
+
+    ptr_to->tkey = CHAR;
+    ptr_to->size = 1;
+
+    ty->ptr_to = ptr_to;
+
+    Obj *var = new_string_literal(str, ty, tok);
+
+    if (equal(tok, "[")) // return character
+    {
+      Node *node_idx = array_index(tok, locals);
+      Node *node_var = new_var_node(var);
+      return new_unary(ND_DEREF, new_add(node_var, node_idx));
+    }
+    else // return string
     {
       return new_var_node(var);
     }
@@ -617,7 +684,7 @@ static Node *primary(Token **tok, Obj **locals)
   return new_node(ND_NONE);
 }
 
-//   var_init   = ident array_index?
+//   var_init   = ident ("[" num "]")?
 static Node *var_init(Type *type, Token **tok, Obj **vars)
 {
   if ((*tok)->kind != TK_IDENT)
@@ -682,6 +749,15 @@ static Node *funcall(Token **tok, Obj **locals)
   node->funcname = mystrndup(start->str, start->len);
   node->args = head.next;
   return node;
+}
+
+// array_index = ("[" expr "]")?
+static Node *array_index(Token **tok, Obj **locals)
+{
+  *tok = (*tok)->next; // skip
+  Node *node_idx = expr(tok, locals);
+  expect(tok, "]");
+  return node_idx;
 }
 
 Obj *parse(Token **tok)

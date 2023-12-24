@@ -16,6 +16,7 @@ typedef enum
   TK_RESERVED, // Keywords or punctuators
   TK_IDENT,    // Identifier
   TK_NUM,      // Integer literals
+  TK_STR,      // String literals
   TK_KEYWORD,  // Keywords
   TK_TYPE,     // Type
   TY_SIZEOF,   // sizeof
@@ -59,10 +60,12 @@ struct Obj
   size_t len;    // Name length
   int offset;    // Offset from RBP
   Type *ty;      // Type
-  bool is_local; // local or global/function
+  bool is_local; // local or global/function/str
 
   // Global variable or function
   bool is_function;
+  char *init_data;
+  Obj *globals;
 
   Obj *params;
   Node **body;
@@ -77,7 +80,7 @@ void error_at(char *loc, char *fmt, ...);
 void error_tok(Token **tok, char *fmt, ...);
 bool consume(Token **tok, char *op);
 bool equal(Token **tok, char *op);
-bool xnext_equal(Token **tok, char *op, int x);
+bool equal_xnext(Token **tok, char *op, int x);
 bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
@@ -148,6 +151,8 @@ struct Node
   int parameter_num; // Number of Fucntion parameters
 
   Obj *var; // Use if kind == ND_VAR
+
+  char *str; // Use if kind == ND_STR
 };
 
 Obj *parse(Token **tok);

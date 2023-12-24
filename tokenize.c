@@ -71,15 +71,15 @@ bool equal(Token **tok, char *op)
 }
 
 // Ensure that the x-next token is `op`.
-// ex. xnext_equal(tok, "==", 2)
+// ex. equal_xnext(tok, "==", 2)
 // => equal(&(tok->next->next), "==")
-bool xnext_equal(Token **tok, char *op, int x)
+bool equal_xnext(Token **tok, char *op, int x)
 {
   Token *cur = *tok;
   for (int i = 0; i < x; i++)
   {
     if (cur->next == NULL)
-      error_tok(tok, "xnext_equal: %dnext token is NULL", i);
+      error_tok(tok, "equal_xnext: %dnext token is NULL", i);
     cur = cur->next;
   }
   return equal(&cur, op);
@@ -203,6 +203,25 @@ Token *tokenize(char *p)
     {
       char *str = mystrndup(p, 1);
       cur = new_token(TK_RESERVED, cur, p++, str, 1);
+      continue;
+    }
+
+    // String
+    if (startswith(p, "\""))
+    {
+      p++;
+      int str_len = 0;
+      while (!startswith(p, "\""))
+      {
+        if (str_len > 128)
+          error_at(p, "String too long");
+        str_len++;
+        p++;
+      }
+
+      char *str = mystrndup(p - str_len, str_len);
+      cur = new_token(TK_STR, cur, p, str, str_len);
+      p++;
       continue;
     }
 

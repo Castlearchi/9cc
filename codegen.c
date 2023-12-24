@@ -3,7 +3,6 @@
 static void gen(Node *node);
 static void gen_addr(Node *node);
 static void gen_funcall(Node *node);
-static void gen_topnode();
 
 static char *regards64[] = {"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 static char *regards32[] = {"edi", "esi", "edx", "ecx", "r8d", "r9d"};
@@ -287,11 +286,37 @@ static void store_gp(int i, int offset, int size)
   }
 }
 
-static void gen_topnode()
+void emit_data(Obj *prog)
 {
-  // Global var init
-  if (current_fn->is_function)
+  for (Obj *var = prog; var; var = var->next)
   {
+    if (var->is_function)
+      continue;
+
+    printf("  .data\n");
+    printf("  .globl %s\n", var->name);
+    printf("%s:\n", var->name);
+
+    if (var->init_data)
+    {
+      for (int i = 0; i < var->ty->size; i++)
+        printf("  .byte %d\n", var->init_data[i]);
+    }
+    else
+    {
+      printf("  .zero %d\n", var->ty->size);
+    }
+  }
+}
+
+void emit_text(Obj *prog)
+{
+  for (Obj *fn = prog; fn; fn = fn->next)
+  {
+    if (!fn->is_function)
+      continue;
+    current_fn = fn;
+
     printf("  .globl %s\n", current_fn->name);
     printf("  .text\n");
     printf("%s:\n", current_fn->name);
@@ -317,36 +342,21 @@ static void gen_topnode()
     for (int i = 0; i < code_num; i++)
     {
       gen(current_fn->body[i]);
-      // Since there should be one value left in the stack
-      // as a result of evaluating the expression,
-      // make sure to pop it to avoid overflowing the stack.
     }
 
-    // The result of the last expression is stored in RAX,
-    // so it becomes the return value.
     printf(".L.return.%s:\n", current_fn->name);
     printf("  mov rsp, rbp\n");
     pop("rbp");
     printf("  ret\n");
   }
-  else
-  {
-    printf("  .data\n");
-    printf("  .globl %s\n", current_fn->name);
-    printf("%s:\n", current_fn->name);
-    printf("  .zero %d\n", current_fn->ty->size);
-    return;
-  }
 }
+
 void codegen(Obj *prog)
 {
-  // Print out the first half of assembly.
   printf("  .intel_syntax noprefix\n");
-  for (Obj *top = prog; top; top = top->next)
-  {
-    current_fn = top;
-    gen_topnode();
-  }
+
+  emit_data(prog);
+  emit_text(prog);
 
   if (push_pop != 0)
     error("pushとpopの数が合わない push - pop = %d\n", push_pop);

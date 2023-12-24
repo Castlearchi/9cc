@@ -1,6 +1,10 @@
 	.file	"global.c"
 	.intel_syntax noprefix
 	.text
+	.section	.rodata
+.LC0:
+	.string	"Hello"
+	.text
 	.globl	main
 	.type	main, @function
 main:
@@ -12,34 +16,15 @@ main:
 	.cfi_offset 6, -16
 	mov	rbp, rsp
 	.cfi_def_cfa_register 6
-	mov	edi, 3
+	lea	rax, .LC0[rip]
+	mov	QWORD PTR -8[rbp], rax
 	mov	eax, 0
-	call	ret
 	pop	rbp
 	.cfi_def_cfa 7, 8
 	ret
 	.cfi_endproc
 .LFE0:
 	.size	main, .-main
-	.globl	ret
-	.type	ret, @function
-ret:
-.LFB1:
-	.cfi_startproc
-	endbr64
-	push	rbp
-	.cfi_def_cfa_offset 16
-	.cfi_offset 6, -16
-	mov	rbp, rsp
-	.cfi_def_cfa_register 6
-	mov	DWORD PTR -4[rbp], edi
-	mov	eax, DWORD PTR -4[rbp]
-	pop	rbp
-	.cfi_def_cfa 7, 8
-	ret
-	.cfi_endproc
-.LFE1:
-	.size	ret, .-ret
 	.ident	"GCC: (Ubuntu 11.3.0-1ubuntu1~22.04) 11.3.0"
 	.section	.note.GNU-stack,"",@progbits
 	.section	.note.gnu.property,"a"
