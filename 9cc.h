@@ -4,8 +4,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 typedef struct Node Node;
+
+//
+// util.c
+//
+char *read_file(char *path);
 
 //
 // tokenize.c
@@ -76,7 +82,7 @@ struct Obj
 };
 
 void error(char *fmt, ...);
-void error_at(char *loc, char *fmt, ...);
+void error_at(char *loc, char *msg);
 void error_tok(Token **tok, char *fmt, ...);
 bool consume(Token **tok, char *op);
 bool equal(Token **tok, char *op);
@@ -85,7 +91,7 @@ bool expect_ident(Token **tok);
 void expect(Token **tok, char *op);
 int expect_number(Token **tok);
 bool at_eof(Token **tok);
-Token *tokenize(char *p);
+Token *tokenize(char *filename, char *p);
 char *mystrndup(const char *s, size_t n);
 
 //

@@ -22,7 +22,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  ./9cc "$input" > tmp.s || error "$input" 
+  echo "$input" | ./9cc - > tmp.s || error "$input" 
   cc -static -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
@@ -239,4 +239,5 @@ assert 99 'int main() { return "abc"[2]; }'
 assert 0 'int main() { return "abc"[3]; }'
 assert 4 'int main() { return sizeof("abc"); }'
 
+assert 34 'tests/fibonacci'
 echo OK
